@@ -2,9 +2,9 @@
   "name": "wisp_log_exporter",
   "version": "1.0.0",
   "description": "Test repo for getting logs from wisp",
-  "main": "index.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "start": "node dist/index.js",
+    "build": "tsc"
   },
   "repository": {
     "type": "git",
@@ -20,6 +20,10 @@
     "axios": "^1.4.0",
     "js-yaml": "^4.1.0",
     "socket.io-client": "^4.7.2",
+    "typescript": "^5.1.6",
     "winston": "^3.10.0"
+  },
+  "devDependencies": {
+    "@types/node": "^20.5.1"
   }
 }
