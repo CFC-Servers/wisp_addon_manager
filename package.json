@@ -1,0 +1,25 @@
+{
+  "name": "wisp_log_exporter",
+  "version": "1.0.0",
+  "description": "Test repo for getting logs from wisp",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/CFC-Servers/wisp_log_exporter.git"
+  },
+  "author": "",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/CFC-Servers/wisp_log_exporter/issues"
+  },
+  "homepage": "https://github.com/CFC-Servers/wisp_log_exporter#readme",
+  "dependencies": {
+    "axios": "^1.4.0",
+    "js-yaml": "^4.1.0",
+    "socket.io-client": "^4.7.2",
+    "winston": "^3.10.0"
+  }
+}
