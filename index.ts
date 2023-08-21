@@ -2,7 +2,7 @@ const winston = require("winston");
 const yaml = require("js-yaml");
 const fs   = require("fs");
 
-const WispInterface = require("./wisp");
+const { WispInterface } = require("./wisp");
 
 const logger = winston.createLogger({
   format: winston.format.simple(),
@@ -38,7 +38,7 @@ const getTrackedAddons = async (wisp: typeof WispInterface) => {
     // "/garrysmod/addons/niknaks"
     const path = "/" + keySplit.join("/");
 
-    installedAddons[keySplit.slice(-1)[1]] = path;
+    installedAddons[keySplit[keySplit.length - 1]] = path;
   }
 
   return installedAddons;
@@ -50,7 +50,10 @@ const getDesiredAddons = () => {
   const desiredAddons: {[key: string]: DesiredAddon} = {};
   for (const addon of doc.addons) {
     const url = addon.url.toLowerCase();
-    const name = url.split("/").slice(-1)[1];
+
+    let name = url.split("/");
+    name = name[name.length - 1];
+
     desiredAddons[name] = { url: url, branch: addon.branch };
   }
 
@@ -122,16 +125,27 @@ const updateAddons = async (wisp: typeof WispInterface, addons: string[]) => {
     }
   }
 
-  console.log("Deleting:");
-  console.log(toDelete);
-  await deleteAddons(wisp, toDelete);
+  if (toDelete.length > 0) {
+    logger.info("Deleting:");
+    logger.info(toDelete);
+    await deleteAddons(wisp, toDelete);
+  } else {
+    logger.info("No addons to delete");
+  }
 
-  console.log("Cloning:");
-  console.log(toClone);
-  await cloneAddons(wisp, toClone);
+  if (toClone.length > 0) {
+    logger.info("Cloning:");
+    logger.info(toClone);
+    await cloneAddons(wisp, toClone);
+  } else {
+    logger.info("No addons to clone");
+  }
 
-  console.log("Updating:");
-  console.log(toUpdate);
-  await updateAddons(wisp, toUpdate);
-
+  if (toUpdate.length > 0) {
+    logger.info("Updating:");
+    logger.info(toUpdate);
+    await updateAddons(wisp, toUpdate);
+  } else {
+    logger.info("No addons to update");
+  }
 })();
