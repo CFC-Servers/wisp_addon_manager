@@ -16,7 +16,7 @@ interface GitPullData {
   dir: string;
 }
 
-interface FilesearchResults {
+export interface FilesearchResults {
   files: {[key: string]: FilesearchFile};
   tooMany: boolean;
 }
@@ -24,7 +24,7 @@ interface FilesearchResults {
 interface ServerToClientEvents {
   "error": (message: string) => void;
   "auth_success": (message: string) => void;
-  "filesearch-results": (data: any) => void;
+  "filesearch-results": (data: FilesearchResults) => void;
   "git-error": (data: string) => void;
   "git-success": (message?: string) => void;
   "git-clone": (data: GitCloneData) => void;

@@ -91,7 +91,7 @@ export class WispAPI {
 
   async readFile(path: string) {
     const response = await this.makeRequest("GET", "files/read", { path: path });
-    return response.content;
+    return response.data.content;
   }
 
   async writeFile(path: string, content: string) {
