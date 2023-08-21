@@ -7,3 +7,4 @@ services:
       - TOKEN=$TOKEN
       - UUID=$UUID
       - DOMAIN=$DOMAIN
+      - GH_PAT=$GH_PAT
