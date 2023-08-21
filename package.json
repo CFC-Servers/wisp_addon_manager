@@ -3,19 +3,18 @@
   "version": "1.0.0",
   "description": "Test repo for getting logs from wisp",
   "scripts": {
-    "start": "node dist/index.js",
-    "build": "tsc"
+    "start": "tsc && node dist/index.js"
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/CFC-Servers/wisp_log_exporter.git"
+    "url": "git+https://github.com/CFC-Servers/wisp_addon_manager.git"
   },
   "author": "",
   "license": "ISC",
   "bugs": {
-    "url": "https://github.com/CFC-Servers/wisp_log_exporter/issues"
+    "url": "https://github.com/CFC-Servers/wisp_addon_manager/issues"
   },
-  "homepage": "https://github.com/CFC-Servers/wisp_log_exporter#readme",
+  "homepage": "https://github.com/CFC-Servers/wisp_addon_manager#readme",
   "dependencies": {
     "axios": "^1.4.0",
     "js-yaml": "^4.1.0",

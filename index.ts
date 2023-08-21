@@ -148,4 +148,7 @@ const updateAddons = async (wisp: typeof WispInterface, addons: string[]) => {
   } else {
     logger.info("No addons to update");
   }
+
+  logger.info("Finished");
+  process.exit(0);
 })();

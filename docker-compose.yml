@@ -2,8 +2,8 @@ version: '3.8'
 
 services:
   manager:
-    image: node:20
+    build: .
     environment:
-      - TOKEN = $TOKEN
-      - UUID = $UUID
-      - DOMAIN = $DOMAIN
+      - TOKEN=$TOKEN
+      - UUID=$UUID
+      - DOMAIN=$DOMAIN
