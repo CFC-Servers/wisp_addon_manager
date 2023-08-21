@@ -3,6 +3,7 @@ const yaml = require("js-yaml");
 const fs   = require("fs");
 
 const { WispInterface } = require("./wisp");
+const { getGithubFile } = require("./github");
 
 const logger = winston.createLogger({
   format: winston.format.simple(),
@@ -44,8 +45,9 @@ const getTrackedAddons = async (wisp: typeof WispInterface) => {
   return installedAddons;
 }
 
-const getDesiredAddons = () => {
-  const doc = yaml.load(fs.readFileSync("./addons.yaml", "utf8"));
+const getDesiredAddons = async () => {
+  const controlFile = await getGithubFile("CFC-Servers", "cfc_infra", "servers/cfc3/addons.yaml");
+  const doc = yaml.load(controlFile);
 
   const desiredAddons: {[key: string]: DesiredAddon} = {};
   for (const addon of doc.addons) {
@@ -96,6 +98,7 @@ const updateAddons = async (wisp: typeof WispInterface, addons: string[]) => {
   const token = process.env.TOKEN;
   if (!token) { throw new Error("TOKEN environment variable not set"); }
 
+
   const wisp = new WispInterface(domain, uuid, token, logger);
   await wisp.connect();
 
@@ -103,7 +106,7 @@ const updateAddons = async (wisp: typeof WispInterface, addons: string[]) => {
   console.log("installed addons");
   console.log(installedAddons);
 
-  const desiredAddons = getDesiredAddons();
+  const desiredAddons = await getDesiredAddons();
   console.log("desired addons:");
   console.log(desiredAddons);
 
