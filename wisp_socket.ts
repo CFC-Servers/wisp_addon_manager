@@ -126,7 +126,7 @@ export class WispSocket {
         finished(false, "");
       });
 
-      const data = {dir: dir, authkey: "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"};
+      const data = {dir: dir, authkey: process.env.GH_PAT};
       this.socket.emit("git-pull", data);
     });
   }
@@ -159,7 +159,7 @@ export class WispSocket {
         finished(false);
       });
 
-      const data = {dir: dir, url: url, branch: branch, authkey: "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"};
+      const data = {dir: dir, url: url, branch: branch, authkey: process.env.GH_PAT};
       this.socket.emit("git-clone", data);
     });
   }
