@@ -4,7 +4,9 @@ const fs   = require("fs");
 
 const { WispInterface } = require("./wisp");
 const { FilesearchResults } = require("./wisp_socket");
-const { getGithubFile, gitCommitDiff, CompareDTO } = require("./github");
+const { getGithubFile, gitCommitDiff } = require("./github");
+const { DesiredAddon, InstalledAddon, AddonChangeInfo } = require("./index_types");
+const { generateUpdateWebhook } = require("./discord");
 
 const logger = winston.createLogger({
   format: winston.format.simple(),
@@ -14,29 +16,22 @@ const logger = winston.createLogger({
   ]
 });
 
-interface DesiredAddon {
-  url: string
-  owner: string
-  repo: string
-  branch: string
-  destination?: string
+const getControlFile = () => {
+  const contents = fs.readFileSync("./control_file.txt", "utf8");
+  logger.info(`Reading control file: ${contents}`);
+
+  if (contents === "./addons_full.yaml") {
+    // write "addons.yaml"
+    fs.writeFileSync("./control_file.txt", "./addons.yaml");
+  } else {
+    // write "addons_full.yaml"
+    fs.writeFileSync("./control_file.txt", "./addons_full.yaml");
+  }
+
+  const controlFileContents = fs.readFileSync(contents, "utf8");
+  return controlFileContents;
 }
 
-interface InstalledAddon {
-  path: string;
-  url: string;
-  owner: string;
-  repo: string;
-  branch: string;
-  commit: string;
-}
-
-// TODO: Make a new interface for each change type?
-interface AddonChangeInfo {
-  addonName: string;
-  change: "create" | "update" | "delete";
-  updateInfo?: typeof CompareDTO;
-}
 
 const convertFindKeyToPath = (key: string) => {
     // "garrysmod/addons/niknaks/.git/config"
@@ -75,7 +70,7 @@ const getOwnerRepoFromURL = (url: string) => {
 const getTrackedAddons = async (wisp: typeof WispInterface) => {
   const addonSearch = await wisp.socket.filesearch(`remote "origin"`);
 
-  const installedAddons: {[key: string]: InstalledAddon} = {};
+  const installedAddons: {[key: string]: typeof InstalledAddon} = {};
   for (const [key, value] of Object.entries(addonSearch.files) as [string, typeof FilesearchResults][]) {
 
     const path = convertFindKeyToPath(key);
@@ -89,7 +84,7 @@ const getTrackedAddons = async (wisp: typeof WispInterface) => {
 
     const [owner, repo] = getOwnerRepoFromURL(url);
 
-    const addon: InstalledAddon = {
+    const addon: typeof InstalledAddon = {
       path: path,
       url: url,
       owner: owner,
@@ -101,13 +96,13 @@ const getTrackedAddons = async (wisp: typeof WispInterface) => {
     installedAddons[repo] = addon;
   }
 
-  await makeAPICallInBatches(wisp, Object.values(installedAddons), async (wisp: typeof WispInterface, addon: InstalledAddon) => {
+  await makeAPICallInBatches(wisp, Object.values(installedAddons), async (wisp: typeof WispInterface, addon: typeof InstalledAddon) => {
     const branch = await getCurrentBranch(wisp, addon.path);
     addon.branch = branch
     logger.info(`Found branch ${branch} for ${addon.path}`);
   });
 
-  await makeAPICallInBatches(wisp, Object.values(installedAddons), async (wisp: typeof WispInterface, addon: InstalledAddon) => {
+  await makeAPICallInBatches(wisp, Object.values(installedAddons), async (wisp: typeof WispInterface, addon: typeof InstalledAddon) => {
     const commit = await getCurrentCommit(wisp, addon);
     addon.commit = commit;
     logger.info(`Found commit ${commit} for ${addon.path}`);
@@ -117,10 +112,11 @@ const getTrackedAddons = async (wisp: typeof WispInterface) => {
 }
 
 const getDesiredAddons = async () => {
-  const controlFile = await getGithubFile("CFC-Servers", "cfc_infra", "servers/cfc3/addons.yaml");
+  // const controlFile = await getGithubFile("CFC-Servers", "cfc_infra", "servers/cfc3/addons.yaml");
+  const controlFile = getControlFile();
   const doc = yaml.load(controlFile);
 
-  const desiredAddons: {[key: string]: DesiredAddon} = {};
+  const desiredAddons: {[key: string]: typeof DesiredAddon} = {};
   for (const addon of doc.addons) {
     const url = addon.url.toLowerCase();
 
@@ -140,7 +136,7 @@ const getDesiredAddons = async () => {
   return desiredAddons;
 }
 
-const cloneAddons = async (wisp: typeof WispInterface, desiredAddons: DesiredAddon[]) => {
+const cloneAddons = async (wisp: typeof WispInterface, desiredAddons: typeof DesiredAddon[]) => {
   const failures: string[] = [];
   const successes = [];
 
@@ -186,10 +182,10 @@ const getCurrentBranch = async(wisp: typeof WispInterface, addon: string) => {
   return currentBranch;
 }
 
-const makeAPICallInBatches = async (wisp: typeof WispInterface, addons: InstalledAddon[], func: any) => {
+const makeAPICallInBatches = async (wisp: typeof WispInterface, addons: typeof InstalledAddon[], func: any) => {
   const BATCH_SIZE = 10;
 
-  const makeCall = async (addon: InstalledAddon) => {
+  const makeCall = async (addon: typeof InstalledAddon) => {
     try {
       await func(wisp, addon);
     } catch (e) {
@@ -198,7 +194,7 @@ const makeAPICallInBatches = async (wisp: typeof WispInterface, addons: Installe
     }
   }
 
-  const processBatch = async (batch: InstalledAddon[]) => {
+  const processBatch = async (batch: typeof InstalledAddon[]) => {
     return await Promise.all(batch.map(makeCall));
   };
 
@@ -208,7 +204,7 @@ const makeAPICallInBatches = async (wisp: typeof WispInterface, addons: Installe
   }
 }
 
-const getCurrentCommit = async (wisp: typeof WispInterface, addon: InstalledAddon) => {
+const getCurrentCommit = async (wisp: typeof WispInterface, addon: typeof InstalledAddon) => {
   const branch = addon.branch;
 
   const path = `${addon.path}/.git/refs/heads/${branch}`;
@@ -220,7 +216,7 @@ const getCurrentCommit = async (wisp: typeof WispInterface, addon: InstalledAddo
   return currentCommit;
 }
 
-const updateAddons = async (wisp: typeof WispInterface, addons: InstalledAddon[]) => {
+const updateAddons = async (wisp: typeof WispInterface, addons: typeof InstalledAddon[]) => {
   const changes: {[key: string]: string} = {};
 
   for(const addon of addons) {
@@ -291,7 +287,7 @@ const updateAddons = async (wisp: typeof WispInterface, addons: InstalledAddon[]
 
   // TODO: How to handle branch change alerts?
   // They're marked as both Deletes and Clones, which is a bit odd
-  const allChanges: {[key: string]: AddonChangeInfo[]} = {
+  const allChanges: {[key: string]: typeof AddonChangeInfo[]} = {
     create: [],
     update: [],
     delete: []
@@ -300,7 +296,7 @@ const updateAddons = async (wisp: typeof WispInterface, addons: InstalledAddon[]
   if (toDelete.length > 0) {
     await deleteAddons(wisp, toDelete.map(addon => addon.path));
     for (const addon of toDelete) {
-      const change: AddonChangeInfo = {
+      const change: typeof AddonChangeInfo = {
         addonName: addon.repo,
         change: "delete"
       };
@@ -321,7 +317,7 @@ const updateAddons = async (wisp: typeof WispInterface, addons: InstalledAddon[]
 
     if (successes && successes.length > 0) {
       for (const addon of successes) {
-        const change: AddonChangeInfo = {
+        const change: typeof AddonChangeInfo = {
           addonName: addon,
           change: "create"
         };
@@ -336,7 +332,7 @@ const updateAddons = async (wisp: typeof WispInterface, addons: InstalledAddon[]
   if (toUpdate.length > 0) {
     const changes = await updateAddons(wisp, toUpdate);
     for (const [name, change] of Object.entries(changes)) {
-      const changeInfo: AddonChangeInfo = {
+      const changeInfo: typeof AddonChangeInfo = {
         addonName: name,
         change: "update",
         updateInfo: change
@@ -357,5 +353,8 @@ const updateAddons = async (wisp: typeof WispInterface, addons: InstalledAddon[]
   logger.info("\n");
 
   logger.info("Finished");
+
+  await generateUpdateWebhook(allChanges);
+
   process.exit(0);
 })();

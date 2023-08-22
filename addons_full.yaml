@@ -1,8 +1,22 @@
-# Git-controlled addon format:
-#
-# - url: The plain github URL of the project (String) ( e.g. https://github.com/CFC-Servers/cfc_infra )
-#   branch: The branch name to track (String)
 addons:
+  - url: https://github.com/CFC-Servers/cfc_block_luarun
+    branch: main
+
+  - url: https://github.com/CFC-Servers/cfc_chatblock
+    branch: main
+
+  - url: https://github.com/CFC-Servers/cfc_chat_visibility
+    branch: master
+
+  - url: https://github.com/CFC-Servers/cfc_chip_lister
+    branch: main
+
+  - url: https://github.com/CFC-Servers/cfc_cl_http_whitelist
+    branch: main
+
+  - url: https://github.com/CFC-Servers/cfc_cl_http_whitelist_configs
+    branch: master
+
   - url: https://github.com/wiremod/advdupe2
     branch: master
 
@@ -10,7 +24,7 @@ addons:
     branch: main
 
   - url: https://github.com/CFC-Servers/cfc_77.15.580
-    branch: main
+    branch: lua
 
   - url: https://github.com/CFC-Servers/cfc_admin_remove
     branch: main

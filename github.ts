@@ -99,7 +99,7 @@ interface File {
   patch: string;
 }
 
-interface CompareResponse {
+interface CompareData {
   url: string;
   html_url: string;
   permalink_url: string;
@@ -113,6 +113,10 @@ interface CompareResponse {
   total_commits: number;
   commits: Commit[];
   files: File[];
+}
+
+interface CompareResponse {
+  data: CompareData;
 }
 
 interface AuthorDTO {
@@ -140,6 +144,10 @@ export const gitCommitDiff = async (owner: string, repo: string, oldSHA: string,
     auth: process.env.GH_PAT
   });
 
+  // get first 6 of each sha
+  oldSHA = oldSHA.substring(0, 6);
+  newSHA = newSHA.substring(0, 6);
+
   console.log(`Getting diff between ${oldSHA} and ${newSHA} from ${repo} owned by ${owner}`);
   const content: CompareResponse = await octokit.request('GET /repos/{owner}/{repo}/compare/{basehead}', {
     owner: owner,
@@ -148,11 +156,11 @@ export const gitCommitDiff = async (owner: string, repo: string, oldSHA: string,
   })
 
   const compareDTO: CompareDTO = {
-    url: content.html_url,
+    url: content.data.html_url,
     commits: []
   };
 
-  for (const commit of content.commits) {
+  for (const commit of content.data.commits) {
     const author: AuthorDTO = {
       username: commit.author.login,
       avatar: commit.author.avatar_url,
