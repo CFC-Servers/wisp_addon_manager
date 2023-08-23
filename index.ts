@@ -354,7 +354,7 @@ const updateAddons = async (wisp: typeof WispInterface, addons: typeof Installed
 
   logger.info("Finished");
 
-  await generateUpdateWebhook(allChanges);
+ await generateUpdateWebhook(allChanges);
 
   process.exit(0);
 })();

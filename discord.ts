@@ -8,11 +8,12 @@ const EMBED_COLORS = {
   create: 0x32CD32,
 };
 
-const generateUpdateEmbed = (addonUpdate: typeof AddonChangeInfo, maxMessageLength: number = 50) => {
+const generateUpdateEmbed = (addonUpdate: typeof AddonChangeInfo) => {
   const { addonName, updateInfo } = addonUpdate;
+  const maxMessageLength = 50;
 
-  const embedTitle = `🚀 Updates for: **${addonName}**`;
-  const embedURL = updateInfo.url;
+  const embedTitle = `🚀 Updates for: **\`${addonName}\`**`;
+  const diffURL = updateInfo.url;
 
   let commitList = updateInfo.commits.map((commit: typeof CommitDTO, index: number) => {
     let message = commit.message;
@@ -20,21 +21,37 @@ const generateUpdateEmbed = (addonUpdate: typeof AddonChangeInfo, maxMessageLeng
       message = `${message.substring(0, maxMessageLength)}...`;
     }
 
-    const shortSha = commit.sha.substring(0, 7);
-    const commitLink = `[\`${shortSha}\`](${commit.url})`;
-    const commitLine = `- **[**${commitLink}**]**: \`${message}\``;
-    return commitLine;
-  }).join('\n');
+    const shortSha = commit.sha.substring(0, 6);
+    const verified = commit.verified ? "✅" : "#️⃣";
+    const commitLink = `[\`${verified}${shortSha}\`](${commit.url})`;
+    const authorLink = `[@${commit.author.username}](${commit.author.url})`;
 
-  const embedDescription = `
-  ${commitList}\n
-  🔗 [View Full Diff](${embedURL})
-  `;
+    const timestamp = Date.parse(commit.date) / 1000
+    const timeLine = `_(<t:${timestamp}:R>)_`;
+
+    const commitLine = `**${authorLink} - ${commitLink}:**᲼${timeLine}`;
+    const commitMessage = `\`\`\`${message}\`\`\``;
+
+    return `${commitLine}\n${commitMessage}`;
+  });
+
+  let description = "";
+  for (let i = 0; i < commitList.length; i++) {
+    const andMore = `\n_And ${commitList.length - i} more..._`;
+
+    const commit = commitList[i];
+    if (description.length + commit.length > (2048 - andMore.length)) {
+      description += andMore;
+      break;
+    }
+
+    description += `${commit}\n`;
+  }
 
   const embed = {
     title: embedTitle,
-    description: embedDescription,
-    url: embedURL,
+    description: description,
+    url: diffURL,
     timestamp: new Date().toISOString(),
   };
 
@@ -94,23 +111,6 @@ export const generateUpdateWebhook = async (addonUpdates: ChangeMap) => {
     });
   });
 
-  const deletes = generateDeleteEmbed(addonUpdates.delete);
-  const creates = generateAddedEmbed(addonUpdates.create);
-
-  if (deletes) {
-    updates.push({
-      ...deletes,
-      color: EMBED_COLORS.delete,
-    });
-  }
-
-  if (creates) {
-    updates.push({
-      ...creates,
-      color: EMBED_COLORS.create,
-    });
-  }
-
   // Function to send a webhook for a chunk of embeds
   const sendWebhook = async (embeds: any[]) => {
     const webhookURL = process.env.ALERT_WEBHOOK;
@@ -122,7 +122,18 @@ export const generateUpdateWebhook = async (addonUpdates: ChangeMap) => {
     return response.status === 200;
   };
 
-  // Splitting the updates into chunks of 10
+  // Send Additions
+  const creates = generateAddedEmbed(addonUpdates.create);
+  if (creates) {
+    await sendWebhook([{ ...creates, color: EMBED_COLORS.create }]);
+  }
+
+  // Send Deletions
+  const deletes = generateDeleteEmbed(addonUpdates.delete);
+  if (deletes) {
+    await sendWebhook([{ ...deletes, color: EMBED_COLORS.delete }]);
+  }
+
   for (let i = 0; i < updates.length; i += 10) {
     const chunk = updates.slice(i, i + 10);
     const success = await sendWebhook(chunk);

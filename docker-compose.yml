@@ -8,3 +8,6 @@ services:
       - UUID=$UUID
       - DOMAIN=$DOMAIN
       - GH_PAT=$GH_PAT
+      - ALERT_WEBHOOK=$ALERT_WEBHOOK
+    volumes:
+      - ./control_file.txt:/app/control_file.txt

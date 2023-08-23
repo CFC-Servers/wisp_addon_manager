@@ -10,6 +10,8 @@ COPY tsconfig.json tsconfig.json
 
 COPY *.ts ./
 COPY addons.yaml addons.yaml
+COPY addons_full.yaml addons_full.yaml
 
 RUN tsc
+
 CMD [ "node", "dist/index.js" ]
