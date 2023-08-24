@@ -8,26 +8,52 @@ const EMBED_COLORS = {
   create: 0x32CD32,
 };
 
+const hiddenURL = "https://github.com/404";
+
 const generateUpdateEmbed = (addonUpdate: typeof AddonChangeInfo) => {
-  const { addonName, updateInfo } = addonUpdate;
+  const { addon, updateInfo, isPrivate } = addonUpdate;
   const maxMessageLength = 50;
 
-  const embedTitle = `🚀 Updates for: **\`${addonName}\`**`;
+  updateInfo.url = `${updateInfo.url}/tree/${updateInfo.branch}`;
+
+  let commitList;
+  if (isPrivate) {
+    updateInfo.url = hiddenURL;
+
+    commitList = updateInfo.commits.map((commit: typeof CommitDTO) => {
+      commit.message = commit.message.replace(/[^ ]/g, "❚");
+
+      commit.author.username = "unknown"
+      commit.author.url = hiddenURL;
+
+      commit.url = hiddenURL
+      commit.sha = commit.sha.replace(/[^ ]/g, "❚");
+
+      return commit;
+    });
+  }
+
+  const embedTitle = `🚀 Updates for: **\`${addon.repo}\`**`;
   const diffURL = updateInfo.url;
 
-  let commitList = updateInfo.commits.map((commit: typeof CommitDTO, index: number) => {
+  commitList = commitList.map((commit: typeof CommitDTO) => {
     let message = commit.message;
     if (message.length > maxMessageLength) {
       message = `${message.substring(0, maxMessageLength)}...`;
     }
 
-    const shortSha = commit.sha.substring(0, 6);
-    const verified = commit.verified ? "✅" : "#️⃣";
-    const commitLink = `[\`${verified}${shortSha}\`](${commit.url})`;
-    const authorLink = `[@${commit.author.username}](${commit.author.url})`;
+    let commitPrefix = commit.verified ? "✅" : "#️⃣";
+    if (isPrivate) {
+      commitPrefix = "🔒";
+    }
 
     const timestamp = Date.parse(commit.date) / 1000
     const timeLine = `_(<t:${timestamp}:R>)_`;
+
+
+    const shortSha = commit.sha.substring(0, 6);
+    const commitLink = `[\`${commitPrefix}${shortSha}\`](${commit.url})`;
+    const authorLink = `[@${commit.author.username}](${commit.author.url})`;
 
     const commitLine = `**${authorLink} - ${commitLink}:**᲼${timeLine}`;
     const commitMessage = `\`\`\`${message}\`\`\``;
@@ -61,15 +87,13 @@ const generateUpdateEmbed = (addonUpdate: typeof AddonChangeInfo) => {
 const generateDeleteEmbed = (addonUpdates: typeof AddonChangeInfo) => {
   const embedTitle = `🗑️ Removed`;
 
-  let commitList = addonUpdates.map((change: typeof AddonChangeInfo, index: number) => {
-    return `- **${change.addonName}**`;
+  const addonList = addonUpdates.map((change: typeof AddonChangeInfo) => {
+    return `- [**${change.addon.repo}**](${change.isPrivate ? hiddenURL : change.addon.url})`;
   }).join('\n');
-
-  const embedDescription = ` ${commitList} `;
 
   const embed = {
     title: embedTitle,
-    description: embedDescription,
+    description: addonList,
     timestamp: new Date().toISOString(),
   };
 
@@ -79,18 +103,16 @@ const generateDeleteEmbed = (addonUpdates: typeof AddonChangeInfo) => {
 const generateAddedEmbed = (addonUpdates: typeof AddonChangeInfo[]) => {
   const embedTitle = `✨ New Addons`;
 
-  let commitList = addonUpdates.map((change: typeof AddonChangeInfo, index: number) => {
-    const url = change.addonName;
-    const name = url.split("/").pop();
+  const commitList = addonUpdates.map((change: typeof AddonChangeInfo) => {
+    const url = change.isPrivate ? hiddenURL : change.addon.url;
+    const name = change.addon.repo;
 
     return `- [**${name}**](${url})`;
   }).join('\n');
 
-  const embedDescription = ` ${commitList} `;
-
   const embed = {
     title: embedTitle,
-    description: embedDescription,
+    description: commitList,
     timestamp: new Date().toISOString(),
   };
 
@@ -123,15 +145,20 @@ export const generateUpdateWebhook = async (addonUpdates: ChangeMap) => {
   };
 
   // Send Additions
+  const newAndDeleted = [];
   const creates = generateAddedEmbed(addonUpdates.create);
   if (creates) {
-    await sendWebhook([{ ...creates, color: EMBED_COLORS.create }]);
+    newAndDeleted.push({ ...creates, color: EMBED_COLORS.create });
   }
 
   // Send Deletions
   const deletes = generateDeleteEmbed(addonUpdates.delete);
   if (deletes) {
-    await sendWebhook([{ ...deletes, color: EMBED_COLORS.delete }]);
+    newAndDeleted.push({ ...deletes, color: EMBED_COLORS.delete });
+  }
+
+  if (newAndDeleted.length > 0) {
+    await sendWebhook(newAndDeleted);
   }
 
   for (let i = 0; i < updates.length; i += 10) {

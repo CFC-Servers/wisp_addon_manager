@@ -15,9 +15,6 @@ addons:
   - url: https://github.com/CFC-Servers/cfc_admin_remove
     branch: main
 
-  - url: https://github.com/brandonsturgeon/cfc_antiafk_custom
-    branch: master
-
   - url: https://github.com/CFC-Servers/cfc_apple_join_leave
     branch: master
 

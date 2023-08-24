@@ -9,11 +9,21 @@ interface GitCloneData {
   dir: string;
   url: string;
   branch: string;
-  authkey: string | undefined;
+  authkey?: string | undefined;
+}
+
+export interface GitCloneResult {
+  isPrivate: boolean;
 }
 
 interface GitPullData {
   dir: string;
+  authkey?: string;
+}
+
+export interface GitPullResult {
+  output: string | undefined;
+  isPrivate: boolean;
 }
 
 export interface FilesearchResults {
@@ -99,17 +109,35 @@ export class WispSocket {
   }
 
   gitPull(dir: string) {
-    return new Promise<string | undefined>((resolve, reject) => {
+    return new Promise<GitPullResult | undefined>((resolve, reject) => {
+      let isPrivate = false;
+
       const finished = (success: boolean, output: string | undefined) => {
         this.socket.removeAllListeners("git-pull");
         this.socket.removeAllListeners("git-error");
         this.socket.removeAllListeners("git-success");
 
+        const result: GitPullResult = {
+          output: output,
+          isPrivate: isPrivate
+        }
+
         if (success) {
-          resolve(output);
+          resolve(result);
         } else {
           reject(output);
         }
+      }
+
+      const sendRequest = (includeAuth: boolean = false) => {
+        const data: GitPullData = { dir: dir };
+
+        if (includeAuth) {
+          isPrivate = true;
+          data.authkey = process.env.GH_PAT
+        }
+
+        this.socket.emit("git-pull", data);
       }
 
       this.socket.once("git-pull", (data) => {
@@ -121,28 +149,49 @@ export class WispSocket {
         finished(true, commit);
       });
 
-      this.socket.once("git-error", (data) => {
-        this.logger.error(`Error updating addon: ${data}`);
-        finished(false, "");
+      this.socket.on("git-error", (message) => {
+        if (message === "Remote authentication required but no callback set") {
+          this.logger.info(`Remote authentication required, trying again with authkey: ${dir}`);
+          sendRequest(true);
+        } else {
+          this.logger.error(`Error updating addon: ${message}`);
+          finished(false, "");
+        }
       });
 
-      const data = {dir: dir, authkey: process.env.GH_PAT};
-      this.socket.emit("git-pull", data);
+      sendRequest();
     });
   }
 
   gitClone(url: string, dir: string, branch: string) {
-    return new Promise<void>((resolve, reject) => {
+    return new Promise<GitCloneResult | undefined>((resolve, reject) => {
+      let isPrivate = false;
+
       const finished = (success: boolean) => {
         this.socket.removeAllListeners("git-clone");
         this.socket.removeAllListeners("git-error");
         this.socket.removeAllListeners("git-success");
 
         if (success) {
-          resolve();
+          const result: GitCloneResult = {
+            isPrivate: isPrivate
+          }
+
+          resolve(result);
         } else {
           reject();
         }
+      }
+
+      const sendRequest = (includeAuth: boolean = false) => {
+        const data: GitCloneData = { dir: dir, url: url, branch: branch };
+
+        if (includeAuth) {
+          isPrivate = true;
+          data.authkey = process.env.GH_PAT
+        }
+
+        this.socket.emit("git-clone", data);
       }
 
       this.socket.once("git-clone", (data) => {
@@ -154,13 +203,17 @@ export class WispSocket {
         finished(true);
       });
 
-      this.socket.once("git-error", (data) => {
-        this.logger.info(`Error cloning repo: ${data}`);
-        finished(false);
+      this.socket.on("git-error", (message) => {
+        if (message === "Remote authentication required but no callback set") {
+          this.logger.info(`Remote authentication required, trying again with authkey: ${dir}`);
+          sendRequest(true);
+        } else {
+          this.logger.info(`Error cloning repo: ${message}`);
+          finished(false);
+        }
       });
 
-      const data = {dir: dir, url: url, branch: branch, authkey: process.env.GH_PAT};
-      this.socket.emit("git-clone", data);
+      sendRequest();
     });
   }
 }

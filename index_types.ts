@@ -19,7 +19,8 @@ export interface InstalledAddon {
 
 // TODO: Make a new interface for each change type?
 export interface AddonChangeInfo {
-  addonName: string;
+  addon: InstalledAddon | DesiredAddon;
   change: "create" | "update" | "delete";
   updateInfo?: typeof CompareDTO;
+  isPrivate?: boolean;
 }
