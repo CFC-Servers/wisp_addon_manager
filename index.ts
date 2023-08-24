@@ -17,20 +17,27 @@ const logger = winston.createLogger({
 });
 
 // For Dev
-const getControlFile = () => {
-  const contents = fs.readFileSync("./control_file.txt", "utf8");
-  logger.info(`Reading control file: ${contents}`);
+// const getControlFile = () => {
+//   return new Promise<string>((resolve, reject) => {
+//     const contents = fs.readFileSync("./control_file.txt", "utf8");
+//     logger.info(`Reading control file: ${contents}`);
+// 
+//     if (contents === "./addons_full.yaml") {
+//       // write "addons.yaml"
+//       fs.writeFileSync("./control_file.txt", "./addons.yaml");
+//     } else {
+//       // write "addons_full.yaml"
+//       fs.writeFileSync("./control_file.txt", "./addons_full.yaml");
+//     }
+// 
+//     const controlFileContents = fs.readFileSync(contents, "utf8");
+// 
+//     resolve(controlFileContents);
+//   });
+// }
 
-  if (contents === "./addons_full.yaml") {
-    // write "addons.yaml"
-    fs.writeFileSync("./control_file.txt", "./addons.yaml");
-  } else {
-    // write "addons_full.yaml"
-    fs.writeFileSync("./control_file.txt", "./addons_full.yaml");
-  }
-
-  const controlFileContents = fs.readFileSync(contents, "utf8");
-  return controlFileContents;
+const getControlFile = async () => {
+  return await getGithubFile("CFC-Servers", "cfc_infra", "servers/cfc3/addons.yaml");
 }
 
 const convertFindKeyToPath = (key: string) => {
@@ -72,7 +79,6 @@ const getTrackedAddons = async (wisp: typeof WispInterface) => {
 
   const installedAddons: {[key: string]: typeof InstalledAddon} = {};
   for (const [key, value] of Object.entries(addonSearch.files) as [string, typeof FilesearchResults][]) {
-
     const path = convertFindKeyToPath(key);
 
     // Getting the url from the config file
@@ -114,8 +120,7 @@ const getTrackedAddons = async (wisp: typeof WispInterface) => {
 }
 
 const getDesiredAddons = async () => {
-  // const controlFile = await getGithubFile("CFC-Servers", "cfc_infra", "servers/cfc3/addons.yaml");
-  const controlFile = getControlFile();
+  const controlFile = await getControlFile();
   const doc = yaml.load(controlFile);
 
   const desiredAddons: {[key: string]: typeof DesiredAddon} = {};
@@ -169,8 +174,6 @@ const cloneAddons = async (wisp: typeof WispInterface, desiredAddons: typeof Des
 }
 
 const deleteAddons = async(wisp: typeof WispInterface, addons: typeof InstalledAddon[]) => {
-  logger.info("Deleting:");
-  logger.info(addons);
   await wisp.api.deleteFiles(addons.map(addon => addon.path));
   logger.info("Deleted addons successfully\n");
 }
@@ -217,7 +220,7 @@ const getCurrentCommit = async (wisp: typeof WispInterface, addon: typeof Instal
   const branch = addon.branch;
 
   const path = `${addon.path}/.git/refs/heads/${branch}`;
-  logger.info(`getting commit from: ${path}`);
+  logger.info(`Getting commit from: ${path}`);
 
   let currentCommit = await wisp.api.readFile(path);
   currentCommit = currentCommit.replace(/[\r\n]+/g,"");
@@ -250,8 +253,7 @@ const updateAddons = async (wisp: typeof WispInterface, addons: typeof Installed
         isPrivate: isPrivate
       }
 
-      logger.info(`Changes for ${addon.repo} (${isPrivate}):`);
-
+      logger.info(`Changes detected for ${addon.repo}`);
       changes.push(addonUpdate);
     } else {
       logger.info(`No changes for ${addon.repo}`);
@@ -379,10 +381,6 @@ const updateAddons = async (wisp: typeof WispInterface, addons: typeof Installed
 
   logger.info("Failures:");
   logger.info(JSON.stringify(allFailures, null, 2));
-  logger.info("\n");
-
-  logger.info("Changes:");
-  logger.info(JSON.stringify(allChanges, null, 2));
   logger.info("\n");
 
   logger.info("Finished");

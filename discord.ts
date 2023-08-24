@@ -146,14 +146,14 @@ export const generateUpdateWebhook = async (addonUpdates: ChangeMap) => {
 
   // Send Additions
   const newAndDeleted = [];
-  const creates = generateAddedEmbed(addonUpdates.create);
-  if (creates) {
+  if (addonUpdates.create.length > 0) {
+    const creates = generateAddedEmbed(addonUpdates.create);
     newAndDeleted.push({ ...creates, color: EMBED_COLORS.create });
   }
 
   // Send Deletions
-  const deletes = generateDeleteEmbed(addonUpdates.delete);
-  if (deletes) {
+  if (addonUpdates.delete.length > 0) {
+    const deletes = generateDeleteEmbed(addonUpdates.delete);
     newAndDeleted.push({ ...deletes, color: EMBED_COLORS.delete });
   }
 
