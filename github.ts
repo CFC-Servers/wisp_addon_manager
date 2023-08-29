@@ -125,7 +125,7 @@ interface AuthorDTO {
   url: string;
 }
 
-interface CommitDTO {
+export interface CommitDTO {
   sha: string;
   message: string;
   url: string;

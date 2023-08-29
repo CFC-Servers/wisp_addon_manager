@@ -1,12 +1,13 @@
-const winston = require("winston");
+import * as winston from "winston";
 const yaml = require("js-yaml");
-const fs   = require("fs");
 
-const { WispInterface } = require("./wisp");
-const { FilesearchResults, GitPullResult, GitCloneResult } = require("./wisp_socket");
-const { getGithubFile, gitCommitDiff } = require("./github");
-const { DesiredAddon, InstalledAddon, AddonChangeInfo } = require("./index_types");
-const { generateUpdateWebhook } = require("./discord");
+import { WispInterface } from "wispjs";
+import type { FilesearchResults, GitPullResult, GitCloneResult } from "wispjs";
+
+import { getGithubFile, gitCommitDiff, CompareDTO } from "./github";
+import { DesiredAddon, InstalledAddon, AddonChangeInfo } from "./index_types";
+import { generateUpdateWebhook } from "./discord";
+import type { ChangeMap } from "./discord";
 
 const logger = winston.createLogger({
   format: winston.format.simple(),
@@ -75,11 +76,11 @@ const getOwnerRepoFromURL = (url: string) => {
 }
 
 // TODO: Only track addons that are in the addons folder?
-const getTrackedAddons = async (wisp: typeof WispInterface) => {
+const getTrackedAddons = async (wisp: WispInterface) => {
   const addonSearch = await wisp.socket.filesearch(`remote "origin"`);
 
-  const installedAddons: {[key: string]: typeof InstalledAddon} = {};
-  for (const [key, value] of Object.entries(addonSearch.files) as [string, typeof FilesearchResults][]) {
+  const installedAddons: {[key: string]: InstalledAddon} = {};
+  for (const [key, value] of Object.entries(addonSearch.files)) {
     const path = convertFindKeyToPath(key);
 
     // Getting the url from the config file
@@ -91,7 +92,7 @@ const getTrackedAddons = async (wisp: typeof WispInterface) => {
 
     const [owner, repo] = getOwnerRepoFromURL(url);
 
-    const addon: typeof InstalledAddon = {
+    const addon: InstalledAddon = {
       path: path,
       url: url,
       owner: owner,
@@ -104,14 +105,14 @@ const getTrackedAddons = async (wisp: typeof WispInterface) => {
   }
 
   // Get Branch
-  await makeAPICallInBatches(wisp, Object.values(installedAddons), async (wisp: typeof WispInterface, addon: typeof InstalledAddon) => {
+  await makeAPICallInBatches(wisp, Object.values(installedAddons), async (wisp: WispInterface, addon: InstalledAddon) => {
     const branch = await getCurrentBranch(wisp, addon.path);
     addon.branch = branch
     logger.info(`Found branch ${branch} for ${addon.path}`);
   });
 
   // Get Commit
-  await makeAPICallInBatches(wisp, Object.values(installedAddons), async (wisp: typeof WispInterface, addon: typeof InstalledAddon) => {
+  await makeAPICallInBatches(wisp, Object.values(installedAddons), async (wisp: WispInterface, addon: InstalledAddon) => {
     const commit = await getCurrentCommit(wisp, addon);
     addon.commit = commit;
     logger.info(`Found commit ${commit} for ${addon.path}`);
@@ -124,7 +125,7 @@ const getDesiredAddons = async () => {
   const controlFile = await getControlFile();
   const doc = yaml.load(controlFile);
 
-  const desiredAddons: {[key: string]: typeof DesiredAddon} = {};
+  const desiredAddons: {[key: string]: DesiredAddon} = {};
   for (const addon of doc.addons) {
     const url = addon.url.toLowerCase();
 
@@ -142,12 +143,12 @@ const getDesiredAddons = async () => {
 }
 
 interface AddonCreate {
-  addon: typeof DesiredAddon;
+  addon: DesiredAddon;
   isPrivate: boolean;
 }
 
-const cloneAddons = async (wisp: typeof WispInterface, desiredAddons: typeof DesiredAddon[]) => {
-  const failures: typeof DesiredAddon[] = [];
+const cloneAddons = async (wisp: WispInterface, desiredAddons: DesiredAddon[]) => {
+  const failures: DesiredAddon[] = [];
   const successes: AddonCreate[] = [];
 
   for (const desiredAddon of desiredAddons) {
@@ -156,7 +157,7 @@ const cloneAddons = async (wisp: typeof WispInterface, desiredAddons: typeof Des
 
     logger.info(`Cloning ${url} to /garrysmod/addons`);
     try {
-      const result: typeof GitCloneResult = await wisp.socket.gitClone(url, "/garrysmod/addons", branch);
+      const result: GitCloneResult = await wisp.socket.gitClone(url, "/garrysmod/addons", branch);
       const createdAddon: AddonCreate = {
         addon: desiredAddon,
         isPrivate: result.isPrivate
@@ -171,15 +172,18 @@ const cloneAddons = async (wisp: typeof WispInterface, desiredAddons: typeof Des
     }
   }
 
-  return [failures, successes];
+  return {
+    failures: failures,
+    successes: successes
+  };
 }
 
-const deleteAddons = async(wisp: typeof WispInterface, addons: typeof InstalledAddon[]) => {
+const deleteAddons = async(wisp: WispInterface, addons: InstalledAddon[]) => {
   await wisp.api.deleteFiles(addons.map(addon => addon.path));
   logger.info("Deleted addons successfully\n");
 }
 
-const getCurrentBranch = async(wisp: typeof WispInterface, addon: string) => {
+const getCurrentBranch = async(wisp: WispInterface, addon: string) => {
   const path = `${addon}/.git/HEAD`;
 
   // "ref: refs/heads/feature/rewrite"
@@ -195,10 +199,10 @@ const getCurrentBranch = async(wisp: typeof WispInterface, addon: string) => {
   return currentBranch;
 }
 
-const makeAPICallInBatches = async (wisp: typeof WispInterface, addons: typeof InstalledAddon[], func: any) => {
+const makeAPICallInBatches = async (wisp: WispInterface, addons: InstalledAddon[], func: any) => {
   const BATCH_SIZE = 10;
 
-  const makeCall = async (addon: typeof InstalledAddon) => {
+  const makeCall = async (addon: InstalledAddon) => {
     try {
       await func(wisp, addon);
     } catch (e) {
@@ -207,7 +211,7 @@ const makeAPICallInBatches = async (wisp: typeof WispInterface, addons: typeof I
     }
   }
 
-  const processBatch = async (batch: typeof InstalledAddon[]) => {
+  const processBatch = async (batch: InstalledAddon[]) => {
     return await Promise.all(batch.map(makeCall));
   };
 
@@ -217,7 +221,7 @@ const makeAPICallInBatches = async (wisp: typeof WispInterface, addons: typeof I
   }
 }
 
-const getCurrentCommit = async (wisp: typeof WispInterface, addon: typeof InstalledAddon) => {
+const getCurrentCommit = async (wisp: WispInterface, addon: InstalledAddon) => {
   const branch = addon.branch;
 
   const path = `${addon.path}/.git/refs/heads/${branch}`;
@@ -230,12 +234,12 @@ const getCurrentCommit = async (wisp: typeof WispInterface, addon: typeof Instal
 }
 
 interface AddonUpdate {
-  addon: typeof InstalledAddon;
-  change: string;
+  addon: InstalledAddon;
+  change: CompareDTO;
   isPrivate: boolean;
 }
 
-const updateAddons = async (wisp: typeof WispInterface, addons: typeof InstalledAddon[]) => {
+const updateAddons = async (wisp: WispInterface, addons: InstalledAddon[]) => {
   const changes: AddonUpdate[] = [];
 
   for(const addon of addons) {
@@ -243,7 +247,7 @@ const updateAddons = async (wisp: typeof WispInterface, addons: typeof Installed
 
     // TODO: Handle pull errors
     try {
-      const pullResult: typeof GitPullResult = await wisp.socket.gitPull(addon.path);
+      const pullResult: GitPullResult = await wisp.socket.gitPull(addon.path);
       const newCommit = pullResult.output;
       const isPrivate = pullResult.isPrivate;
 
@@ -279,8 +283,11 @@ const updateAddons = async (wisp: typeof WispInterface, addons: typeof Installed
   const token = process.env.TOKEN;
   if (!token) { throw new Error("TOKEN environment variable not set"); }
 
-  const wisp = new WispInterface(domain, uuid, token, logger);
-  await wisp.connect();
+  const ghPAT = process.env.GH_PAT;
+  if (!ghPAT) { throw new Error("GH_PAT environment variable not set"); }
+
+  const wisp = new WispInterface(domain, uuid, token);
+  await wisp.connect(ghPAT);
 
   const installedAddons = await getTrackedAddons(wisp);
   const desiredAddons = await getDesiredAddons();
@@ -288,6 +295,7 @@ const updateAddons = async (wisp: typeof WispInterface, addons: typeof Installed
   const toClone = [];
   const toUpdate = [];
   const toDelete = [];
+
   for (const [name, desiredAddon] of Object.entries(desiredAddons)) {
     const installedAddon = installedAddons[name];
 
@@ -314,7 +322,7 @@ const updateAddons = async (wisp: typeof WispInterface, addons: typeof Installed
     }
   }
 
-  const allFailures: {[key: string]: string[]} = {
+  const allFailures: {[key: string]: (AddonCreate | DesiredAddon)[]} = {
     clone: [],
     delete: [],
     update: []
@@ -322,7 +330,7 @@ const updateAddons = async (wisp: typeof WispInterface, addons: typeof Installed
 
   // TODO: How to handle branch change alerts?
   // They're marked as both Deletes and Clones, which is a bit odd
-  const allChanges: {[key: string]: typeof AddonChangeInfo[]} = {
+  const allChanges: ChangeMap = {
     create: [],
     update: [],
     delete: []
@@ -332,7 +340,7 @@ const updateAddons = async (wisp: typeof WispInterface, addons: typeof Installed
   if (toDelete.length > 0) {
     await deleteAddons(wisp, toDelete);
     for (const addon of toDelete) {
-      const change: typeof AddonChangeInfo = {
+      const change: AddonChangeInfo = {
         addon: addon,
         change: "delete"
       };
@@ -346,15 +354,17 @@ const updateAddons = async (wisp: typeof WispInterface, addons: typeof Installed
 
   // New Addons
   if (toClone.length > 0) {
-    const [failures, successes] = await cloneAddons(wisp, toClone);
+    const cloneResult = await cloneAddons(wisp, toClone);
+    const failures = cloneResult.failures;
+    const successes = cloneResult.successes;
 
     if (failures && failures.length > 0) {
-      allFailures.clone.push(...failures);
+      allFailures.clone = [...allFailures.clone, ...failures];
     }
 
     if (successes && successes.length > 0) {
       for (const created of successes) {
-        const change: typeof AddonChangeInfo = {
+        const change: AddonChangeInfo = {
           addon: created.addon,
           change: "create",
           isPrivate: created.isPrivate
@@ -372,7 +382,7 @@ const updateAddons = async (wisp: typeof WispInterface, addons: typeof Installed
     const updates: AddonUpdate[] = await updateAddons(wisp, toUpdate);
 
     for (const update of updates) {
-      const changeInfo: typeof AddonChangeInfo = {
+      const changeInfo: AddonChangeInfo = {
         addon: update.addon,
         change: "update",
         updateInfo: update.change,

@@ -1,6 +1,7 @@
-const axios = require('axios');
-const { AddonChangeInfo } = require("./index_types");
-const { CommitDTO } = require("./github");
+import post from "axios";
+import type { AxiosRequestConfig } from 'axios'
+import { AddonChangeInfo } from "./index_types";
+import { CommitDTO } from "./github";
 
 const EMBED_COLORS = {
   update: 0x1E90FF,
@@ -10,7 +11,7 @@ const EMBED_COLORS = {
 
 const hiddenURL = "https://github.com/404";
 
-const generateUpdateEmbed = (addonUpdate: typeof AddonChangeInfo) => {
+const generateUpdateEmbed = (addonUpdate: AddonChangeInfo) => {
   const { addon, updateInfo, isPrivate } = addonUpdate;
   const maxMessageLength = 50;
 
@@ -20,7 +21,7 @@ const generateUpdateEmbed = (addonUpdate: typeof AddonChangeInfo) => {
   if (isPrivate) {
     updateInfo.url = hiddenURL;
 
-    commitList = updateInfo.commits.map((commit: typeof CommitDTO) => {
+    commitList = updateInfo.commits.map((commit: CommitDTO) => {
       commit.message = commit.message.replace(/[^ ]/g, "❚");
 
       commit.author.username = "unknown"
@@ -36,7 +37,7 @@ const generateUpdateEmbed = (addonUpdate: typeof AddonChangeInfo) => {
   const embedTitle = `🚀 Updates for: **\`${addon.repo}\`**`;
   const diffURL = updateInfo.url;
 
-  commitList = commitList.map((commit: typeof CommitDTO) => {
+  commitList = commitList.map((commit: CommitDTO) => {
     let message = commit.message;
     if (message.length > maxMessageLength) {
       message = `${message.substring(0, maxMessageLength)}...`;
@@ -84,10 +85,10 @@ const generateUpdateEmbed = (addonUpdate: typeof AddonChangeInfo) => {
   return embed;
 };
 
-const generateDeleteEmbed = (addonUpdates: typeof AddonChangeInfo) => {
+const generateDeleteEmbed = (addonUpdates: AddonChangeInfo[]) => {
   const embedTitle = `🗑️ Removed`;
 
-  const addonList = addonUpdates.map((change: typeof AddonChangeInfo) => {
+  const addonList = addonUpdates.map((change: AddonChangeInfo) => {
     return `- [**${change.addon.repo}**](${change.isPrivate ? hiddenURL : change.addon.url})`;
   }).join('\n');
 
@@ -100,10 +101,10 @@ const generateDeleteEmbed = (addonUpdates: typeof AddonChangeInfo) => {
   return embed;
 };
 
-const generateAddedEmbed = (addonUpdates: typeof AddonChangeInfo[]) => {
+const generateAddedEmbed = (addonUpdates: AddonChangeInfo[]) => {
   const embedTitle = `✨ New Addons`;
 
-  const commitList = addonUpdates.map((change: typeof AddonChangeInfo) => {
+  const commitList = addonUpdates.map((change: AddonChangeInfo) => {
     const url = change.isPrivate ? hiddenURL : change.addon.url;
     const name = change.addon.repo;
 
@@ -120,8 +121,8 @@ const generateAddedEmbed = (addonUpdates: typeof AddonChangeInfo[]) => {
 };
 
 type ChangeType = "update" | "delete" | "create";
-type ChangeMap = {
-  [key in ChangeType]: typeof AddonChangeInfo[];
+export type ChangeMap = {
+  [key in ChangeType]: AddonChangeInfo[];
 };
 
 export const generateUpdateWebhook = async (addonUpdates: ChangeMap) => {
@@ -136,11 +137,18 @@ export const generateUpdateWebhook = async (addonUpdates: ChangeMap) => {
   // Function to send a webhook for a chunk of embeds
   const sendWebhook = async (embeds: any[]) => {
     const webhookURL = process.env.ALERT_WEBHOOK;
+    if (!webhookURL) { throw new Error("No webhook URL provided"); }
+
     console.log("Sending webhook to:", webhookURL);
 
-    const response = await axios.post(webhookURL, {
-      embeds,
-    });
+    // TODO: Fix these types
+    const body: AxiosRequestConfig = {
+      data: {
+        embeds,
+      },
+    };
+
+    const response = await post(webhookURL, body)
     return response.status === 200;
   };
 
