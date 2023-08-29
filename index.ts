@@ -1,8 +1,8 @@
 import * as winston from "winston";
-const yaml = require("js-yaml");
+import * as yaml from "js-yaml";
 
 import { WispInterface } from "wispjs";
-import type { FilesearchResults, GitPullResult, GitCloneResult } from "wispjs";
+import type { GitPullResult, GitCloneResult } from "wispjs";
 
 import { getGithubFile, gitCommitDiff, CompareDTO } from "./github";
 import { DesiredAddon, InstalledAddon, AddonChangeInfo } from "./index_types";
@@ -18,6 +18,7 @@ const logger = winston.createLogger({
 });
 
 // For Dev
+// import * as fs from "fs";
 // const getControlFile = () => {
 //   return new Promise<string>((resolve, reject) => {
 //     const contents = fs.readFileSync("./control_file.txt", "utf8");
@@ -123,7 +124,7 @@ const getTrackedAddons = async (wisp: WispInterface) => {
 
 const getDesiredAddons = async () => {
   const controlFile = await getControlFile();
-  const doc = yaml.load(controlFile);
+  const doc: any = yaml.load(controlFile);
 
   const desiredAddons: {[key: string]: DesiredAddon} = {};
   for (const addon of doc.addons) {

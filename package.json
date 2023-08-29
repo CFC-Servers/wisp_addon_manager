@@ -26,6 +26,7 @@
     "wispjs": "github:CFC-Servers/wispjs"
   },
   "devDependencies": {
+    "@types/js-yaml": "^4.0.5",
     "@types/node": "^20.5.1"
   }
 }
