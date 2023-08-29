@@ -1,4 +1,4 @@
 server.log
 node_modules
-dist/*.js
+dist
 .env

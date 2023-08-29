@@ -1,1 +1,0 @@
-./addons_full.yaml
