@@ -37,7 +37,8 @@ const logger = winston.createLogger({
 // }
 
 const getControlFile = async () => {
-  return await getGithubFile("CFC-Servers", "cfc_infra", "servers/cfc3/addons.yaml");
+  const file = `servers/${process.env.REALM}/addons.yaml`;
+  return await getGithubFile("CFC-Servers", "cfc_infra", file);
 }
 
 const convertFindKeyToPath = (key: string) => {
@@ -241,22 +242,27 @@ const updateAddons = async (wisp: typeof WispInterface, addons: typeof Installed
     const currentCommit = addon.commit;
 
     // TODO: Handle pull errors
-    const pullResult: typeof GitPullResult = await wisp.socket.gitPull(addon.path);
-    const newCommit = pullResult.output;
-    const isPrivate = pullResult.isPrivate;
+    try {
+      const pullResult: typeof GitPullResult = await wisp.socket.gitPull(addon.path);
+      const newCommit = pullResult.output;
+      const isPrivate = pullResult.isPrivate;
 
-    if (currentCommit !== newCommit) {
-      const change = await gitCommitDiff(addon.owner, addon.repo, currentCommit, newCommit);
-      const addonUpdate: AddonUpdate = {
-        addon: addon,
-        change: change,
-        isPrivate: isPrivate
+      if (currentCommit !== newCommit) {
+        const change = await gitCommitDiff(addon.owner, addon.repo, currentCommit, newCommit);
+        const addonUpdate: AddonUpdate = {
+          addon: addon,
+          change: change,
+          isPrivate: isPrivate
+        }
+
+        logger.info(`Changes detected for ${addon.repo}`);
+        changes.push(addonUpdate);
+      } else {
+        logger.info(`No changes for ${addon.repo}`);
       }
-
-      logger.info(`Changes detected for ${addon.repo}`);
-      changes.push(addonUpdate);
-    } else {
-      logger.info(`No changes for ${addon.repo}`);
+    } catch (e) {
+      logger.error(`Failed to pull ${addon.repo}`);
+      logger.error(e);
     }
   }
 
