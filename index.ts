@@ -1,4 +1,3 @@
-import winston from "winston";
 import YAML from "yaml";
 
 import { WispInterface } from "wispjs";
@@ -10,13 +9,14 @@ import type { CompareDTO } from "./github.js";
 import type { ChangeMap, FailureMap } from "./discord.js";
 import type { DesiredAddon, InstalledAddon, AddonDeleteInfo, AddonCreateInfo, AddonUpdateInfo  } from "./index_types.js";
 
-const logger = winston.createLogger({
-  format: winston.format.simple(),
-  transports: [
-    new winston.transports.Console(),
-    new winston.transports.File({ filename: "server.log" })
-  ]
-});
+const logger = {
+  info: (msg: string) => {
+    console.log(msg);
+  },
+  error: (msg: any) => {
+    console.error(msg);
+  }
+}
 
 const convertFindKeyToPath = (key: string) => {
     // "garrysmod/addons/niknaks/.git/config"

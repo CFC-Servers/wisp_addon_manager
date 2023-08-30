@@ -1,15 +1,15 @@
-import winston from "winston";
 import YAML from "yaml";
 import { WispInterface } from "wispjs";
 import { generateUpdateWebhook } from "./discord.js";
 import { gitCommitDiff } from "./github.js";
-const logger = winston.createLogger({
-    format: winston.format.simple(),
-    transports: [
-        new winston.transports.Console(),
-        new winston.transports.File({ filename: "server.log" })
-    ]
-});
+const logger = {
+    info: (msg) => {
+        console.log(msg);
+    },
+    error: (msg) => {
+        console.error(msg);
+    }
+};
 const convertFindKeyToPath = (key) => {
     // "garrysmod/addons/niknaks/.git/config"
     // ["garrysmod", "addons", "niknaks", ".git", "config"]
