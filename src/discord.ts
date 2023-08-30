@@ -1,7 +1,6 @@
-import post from "axios";
-import type { AxiosRequestConfig } from 'axios'
-import { AddonChangeInfo } from "./index_types";
-import { CommitDTO } from "./github";
+import axios from "axios";
+import type { CommitDTO } from "./github.js";
+import type { AddonDeleteInfo, AddonCreateInfo, AddonUpdateInfo } from "./index_types.js";
 
 const EMBED_COLORS = {
   update: 0x1E90FF,
@@ -11,13 +10,13 @@ const EMBED_COLORS = {
 
 const hiddenURL = "https://github.com/404";
 
-const generateUpdateEmbed = (addonUpdate: AddonChangeInfo) => {
+const generateUpdateEmbed = (addonUpdate: AddonUpdateInfo) => {
   const { addon, updateInfo, isPrivate } = addonUpdate;
   const maxMessageLength = 50;
 
-  updateInfo.url = `${updateInfo.url}/tree/${updateInfo.branch}`;
+  updateInfo.url = `${updateInfo.url}/tree/${addon.branch}`;
 
-  let commitList;
+  let commitList: CommitDTO[] = [];
   if (isPrivate) {
     updateInfo.url = hiddenURL;
 
@@ -37,7 +36,7 @@ const generateUpdateEmbed = (addonUpdate: AddonChangeInfo) => {
   const embedTitle = `🚀 Updates for: **\`${addon.repo}\`**`;
   const diffURL = updateInfo.url;
 
-  commitList = commitList.map((commit: CommitDTO) => {
+  const commitBody = commitList.map((commit: CommitDTO) => {
     let message = commit.message;
     if (message.length > maxMessageLength) {
       message = `${message.substring(0, maxMessageLength)}...`;
@@ -63,10 +62,10 @@ const generateUpdateEmbed = (addonUpdate: AddonChangeInfo) => {
   });
 
   let description = "";
-  for (let i = 0; i < commitList.length; i++) {
-    const andMore = `\n_And ${commitList.length - i} more..._`;
+  for (let i = 0; i < commitBody.length; i++) {
+    const andMore = `\n_And ${commitBody.length - i} more..._`;
 
-    const commit = commitList[i];
+    const commit = commitBody[i];
     if (description.length + commit.length > (2048 - andMore.length)) {
       description += andMore;
       break;
@@ -85,11 +84,11 @@ const generateUpdateEmbed = (addonUpdate: AddonChangeInfo) => {
   return embed;
 };
 
-const generateDeleteEmbed = (addonUpdates: AddonChangeInfo[]) => {
+const generateDeleteEmbed = (addonUpdates: AddonDeleteInfo[]) => {
   const embedTitle = `🗑️ Removed`;
 
-  const addonList = addonUpdates.map((change: AddonChangeInfo) => {
-    return `- [**${change.addon.repo}**](${change.isPrivate ? hiddenURL : change.addon.url})`;
+  const addonList = addonUpdates.map((change: AddonDeleteInfo) => {
+    return `- [**${change.addon.repo}**](${change.addon.url})`;
   }).join('\n');
 
   const embed = {
@@ -101,10 +100,10 @@ const generateDeleteEmbed = (addonUpdates: AddonChangeInfo[]) => {
   return embed;
 };
 
-const generateAddedEmbed = (addonUpdates: AddonChangeInfo[]) => {
+const generateAddedEmbed = (addonUpdates: AddonCreateInfo[]) => {
   const embedTitle = `✨ New Addons`;
 
-  const commitList = addonUpdates.map((change: AddonChangeInfo) => {
+  const commitList = addonUpdates.map((change: AddonCreateInfo) => {
     const url = change.isPrivate ? hiddenURL : change.addon.url;
     const name = change.addon.repo;
 
@@ -120,9 +119,10 @@ const generateAddedEmbed = (addonUpdates: AddonChangeInfo[]) => {
   return embed;
 };
 
-type ChangeType = "update" | "delete" | "create";
-export type ChangeMap = {
-  [key in ChangeType]: AddonChangeInfo[];
+export interface ChangeMap {
+  update: AddonUpdateInfo[];
+  delete: AddonDeleteInfo[];
+  create:  AddonCreateInfo[];
 };
 
 export const generateUpdateWebhook = async (addonUpdates: ChangeMap) => {
@@ -141,14 +141,7 @@ export const generateUpdateWebhook = async (addonUpdates: ChangeMap) => {
 
     console.log("Sending webhook to:", webhookURL);
 
-    // TODO: Fix these types
-    const body: AxiosRequestConfig = {
-      data: {
-        embeds,
-      },
-    };
-
-    const response = await post(webhookURL, body)
+    const response = await axios.post(webhookURL, { embeds })
     return response.status === 200;
   };
 

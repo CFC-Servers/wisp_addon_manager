@@ -1,4 +1,4 @@
-const { CompareDTO } = require("./github");
+import { CompareDTO } from "./github.js";
 
 export interface DesiredAddon {
   url: string
@@ -17,10 +17,20 @@ export interface InstalledAddon {
   commit: string;
 }
 
-// TODO: Make a new interface for each change type?
-export interface AddonChangeInfo {
-  addon: InstalledAddon | DesiredAddon;
-  change: "create" | "update" | "delete";
-  updateInfo?: typeof CompareDTO;
+
+export interface AddonDeleteInfo {
+  addon: InstalledAddon
+}
+
+export interface AddonCreateInfo {
+  addon: DesiredAddon;
+  isPrivate: boolean;
+}
+
+export interface AddonUpdateInfo {
+  addon: InstalledAddon;
+  updateInfo: CompareDTO;
   isPrivate?: boolean;
 }
+
+export type AddonChangeInfo = AddonDeleteInfo | AddonCreateInfo | AddonUpdateInfo;

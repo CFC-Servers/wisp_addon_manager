@@ -10,5 +10,3 @@ services:
       - GH_PAT=$GH_PAT
       - ALERT_WEBHOOK=$ALERT_WEBHOOK
       - REALM=$REALM
-    volumes:
-      - ./control_file.txt:/app/control_file.txt

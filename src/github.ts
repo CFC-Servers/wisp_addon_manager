@@ -1,4 +1,4 @@
-const { Octokit } = require("@octokit/rest");
+import { Octokit } from "@octokit/rest";
 
 export const getGithubFile = async (owner: string, repo: string, path: string) => {
   const octokit = new Octokit({ 
@@ -7,7 +7,7 @@ export const getGithubFile = async (owner: string, repo: string, path: string) =
 
   console.log(`Getting file ${path} from ${repo} owned by ${owner}`);
 
-  const content = await octokit.request('GET /repos/{owner}/{repo}/contents/{path}', {
+  const response: any = await octokit.request('GET /repos/{owner}/{repo}/contents/{path}', {
     owner: owner,
     repo: repo,
     path: path,
@@ -15,9 +15,10 @@ export const getGithubFile = async (owner: string, repo: string, path: string) =
       "X-GitHub-Api-Version": "2022-11-28",
       "Accept": "application/vnd.github.v3.raw"
     }
-  })
+  });
 
-  return content.data;
+  const data: string = response["data"];
+  return data;
 }
 
 interface MinimalCommit {
@@ -149,7 +150,7 @@ export const gitCommitDiff = async (owner: string, repo: string, oldSHA: string,
   newSHA = newSHA.substring(0, 6);
 
   console.log(`Getting diff between ${oldSHA} and ${newSHA} from ${repo} owned by ${owner}`);
-  const content: CompareResponse = await octokit.request('GET /repos/{owner}/{repo}/compare/{basehead}', {
+  const content = await octokit.request('GET /repos/{owner}/{repo}/compare/{basehead}', {
     owner: owner,
     repo: repo,
     basehead: `${oldSHA}...${newSHA}`,
@@ -162,9 +163,9 @@ export const gitCommitDiff = async (owner: string, repo: string, oldSHA: string,
 
   for (const commit of content.data.commits) {
     const author: AuthorDTO = {
-      username: commit.author.login,
-      avatar: commit.author.avatar_url,
-      url: commit.author.html_url
+      username: commit.author?.login || "unknown",
+      avatar: commit.author?.avatar_url || "",
+      url: commit.author?.html_url || ""
     }
 
     const dto: CommitDTO = {
@@ -172,8 +173,8 @@ export const gitCommitDiff = async (owner: string, repo: string, oldSHA: string,
       message: commit.commit.message,
       url: commit.html_url,
       author: author,
-      verified: commit.commit.verification.verified,
-      date: commit.commit.author.date
+      verified: commit.commit.verification?.verified || false,
+      date: commit.commit?.author?.date || ""
     }
 
     compareDTO.commits.push(dto);

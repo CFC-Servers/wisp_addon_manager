@@ -1,13 +1,14 @@
-import * as winston from "winston";
-import * as yaml from "js-yaml";
+import winston from "winston";
+import YAML from "yaml";
 
 import { WispInterface } from "wispjs";
-import type { GitPullResult, GitCloneResult } from "wispjs";
+import { generateUpdateWebhook } from "./discord.js";
+import { getGithubFile, gitCommitDiff } from "./github.js";
 
-import { getGithubFile, gitCommitDiff, CompareDTO } from "./github";
-import { DesiredAddon, InstalledAddon, AddonChangeInfo } from "./index_types";
-import { generateUpdateWebhook } from "./discord";
-import type { ChangeMap } from "./discord";
+import type { GitPullResult, GitCloneResult } from "wispjs";
+import type { CompareDTO } from "./github.js";
+import type { ChangeMap } from "./discord.js";
+import type { DesiredAddon, InstalledAddon, AddonDeleteInfo, AddonCreateInfo, AddonUpdateInfo  } from "./index_types.js";
 
 const logger = winston.createLogger({
   format: winston.format.simple(),
@@ -16,27 +17,6 @@ const logger = winston.createLogger({
     new winston.transports.File({ filename: "server.log" })
   ]
 });
-
-// For Dev
-// import * as fs from "fs";
-// const getControlFile = () => {
-//   return new Promise<string>((resolve, reject) => {
-//     const contents = fs.readFileSync("./control_file.txt", "utf8");
-//     logger.info(`Reading control file: ${contents}`);
-// 
-//     if (contents === "./addons_full.yaml") {
-//       // write "addons.yaml"
-//       fs.writeFileSync("./control_file.txt", "./addons.yaml");
-//     } else {
-//       // write "addons_full.yaml"
-//       fs.writeFileSync("./control_file.txt", "./addons_full.yaml");
-//     }
-// 
-//     const controlFileContents = fs.readFileSync(contents, "utf8");
-// 
-//     resolve(controlFileContents);
-//   });
-// }
 
 const getControlFile = async () => {
   const file = `servers/${process.env.REALM}/addons.yaml`;
@@ -124,7 +104,7 @@ const getTrackedAddons = async (wisp: WispInterface) => {
 
 const getDesiredAddons = async () => {
   const controlFile = await getControlFile();
-  const doc: any = yaml.load(controlFile);
+  const doc: any = YAML.parse(controlFile);
 
   const desiredAddons: {[key: string]: DesiredAddon} = {};
   for (const addon of doc.addons) {
@@ -143,14 +123,10 @@ const getDesiredAddons = async () => {
   return desiredAddons;
 }
 
-interface AddonCreate {
-  addon: DesiredAddon;
-  isPrivate: boolean;
-}
 
 const cloneAddons = async (wisp: WispInterface, desiredAddons: DesiredAddon[]) => {
-  const failures: DesiredAddon[] = [];
-  const successes: AddonCreate[] = [];
+  const failures: AddonCreateInfo[] = [];
+  const successes: AddonCreateInfo[] = [];
 
   for (const desiredAddon of desiredAddons) {
     const url = `${desiredAddon.url}.git`;
@@ -159,7 +135,7 @@ const cloneAddons = async (wisp: WispInterface, desiredAddons: DesiredAddon[]) =
     logger.info(`Cloning ${url} to /garrysmod/addons`);
     try {
       const result: GitCloneResult = await wisp.socket.gitClone(url, "/garrysmod/addons", branch);
-      const createdAddon: AddonCreate = {
+      const createdAddon: AddonCreateInfo = {
         addon: desiredAddon,
         isPrivate: result.isPrivate
       }
@@ -167,7 +143,11 @@ const cloneAddons = async (wisp: WispInterface, desiredAddons: DesiredAddon[]) =
       successes.push(createdAddon);
       logger.info(`Cloned ${url} to /garrysmod/addons\n`);
     } catch (e) {
-      failures.push(desiredAddon);
+      const failedUpdate: AddonCreateInfo = {
+        addon: desiredAddon,
+        isPrivate: false
+      }
+      failures.push(failedUpdate);
       logger.error(`Failed to clone ${url}`);
       logger.error(e);
     }
@@ -323,10 +303,10 @@ const updateAddons = async (wisp: WispInterface, addons: InstalledAddon[]) => {
     }
   }
 
-  const allFailures: {[key: string]: (AddonCreate | DesiredAddon)[]} = {
-    clone: [],
-    delete: [],
-    update: []
+  const allFailures: ChangeMap = {
+    create: [],
+    update: [],
+    delete: []
   };
 
   // TODO: How to handle branch change alerts?
@@ -341,9 +321,8 @@ const updateAddons = async (wisp: WispInterface, addons: InstalledAddon[]) => {
   if (toDelete.length > 0) {
     await deleteAddons(wisp, toDelete);
     for (const addon of toDelete) {
-      const change: AddonChangeInfo = {
+      const change: AddonDeleteInfo = {
         addon: addon,
-        change: "delete"
       };
 
       allChanges.delete.push(change);
@@ -360,14 +339,13 @@ const updateAddons = async (wisp: WispInterface, addons: InstalledAddon[]) => {
     const successes = cloneResult.successes;
 
     if (failures && failures.length > 0) {
-      allFailures.clone = [...allFailures.clone, ...failures];
+      allFailures.create = [...allFailures.create, ...failures];
     }
 
     if (successes && successes.length > 0) {
       for (const created of successes) {
-        const change: AddonChangeInfo = {
+        const change: AddonCreateInfo = {
           addon: created.addon,
-          change: "create",
           isPrivate: created.isPrivate
         };
 
@@ -383,9 +361,8 @@ const updateAddons = async (wisp: WispInterface, addons: InstalledAddon[]) => {
     const updates: AddonUpdate[] = await updateAddons(wisp, toUpdate);
 
     for (const update of updates) {
-      const changeInfo: AddonChangeInfo = {
+      const changeInfo: AddonUpdateInfo = {
         addon: update.addon,
-        change: "update",
         updateInfo: update.change,
         isPrivate: update.isPrivate
       };

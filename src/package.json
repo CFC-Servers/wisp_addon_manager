@@ -1,7 +1,10 @@
 {
-  "name": "wisp_log_exporter",
+  "name": "wisp_addon_manager",
   "version": "1.0.0",
-  "description": "Test repo for getting logs from wisp",
+  "type": "module",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "description": "Manages a Wisp-based Gmod server's addons",
   "scripts": {
     "start": "tsc && node dist/index.js"
   },
@@ -18,15 +21,13 @@
   "dependencies": {
     "@octokit/rest": "^20.0.1",
     "axios": "^1.4.0",
-    "js-yaml": "^4.1.0",
-    "octokit": "^3.1.0",
     "socket.io-client": "^4.7.2",
     "typescript": "^5.1.6",
     "winston": "^3.10.0",
-    "wispjs": "github:CFC-Servers/wispjs"
+    "wispjs": "github:CFC-Servers/wispjs",
+    "yaml": "^2.3.2"
   },
   "devDependencies": {
-    "@types/js-yaml": "^4.0.5",
     "@types/node": "^20.5.1"
   }
 }
