@@ -131,7 +131,7 @@ export interface FailureMap {
   create:  AddonCreateInfo[];
 }
 
-export const generateUpdateWebhook = async (addonUpdates: ChangeMap) => {
+export const generateUpdateWebhook = async (addonUpdates: ChangeMap, alertWebhook: string) => {
   const updates: any[] = [];
   addonUpdates.update.forEach(update => {
     updates.push({
@@ -142,12 +142,11 @@ export const generateUpdateWebhook = async (addonUpdates: ChangeMap) => {
 
   // Function to send a webhook for a chunk of embeds
   const sendWebhook = async (embeds: any[]) => {
-    const webhookURL = process.env.ALERT_WEBHOOK;
-    if (!webhookURL) { throw new Error("No webhook URL provided"); }
+    if (!alertWebhook) { throw new Error("No webhook URL provided"); }
 
-    console.log("Sending webhook to:", webhookURL);
+    console.log("Sending webhook to:", alertWebhook);
 
-    const response = await axios.post(webhookURL, { embeds })
+    const response = await axios.post(alertWebhook, { embeds })
     return response.status === 200;
   };
 
