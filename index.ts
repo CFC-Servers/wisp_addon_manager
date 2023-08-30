@@ -240,6 +240,7 @@ export async function ManageAddons(domain: string, uuid: string, token: string, 
   const wisp = new WispInterface(domain, uuid, token);
   await wisp.connect(ghPAT);
 
+  console.log("Connected to Wisp - getting tracked addons");
   const installedAddons = await getTrackedAddons(wisp);
 
   const toClone = [];
@@ -247,6 +248,8 @@ export async function ManageAddons(domain: string, uuid: string, token: string, 
   const toDelete = [];
 
   if (controlFile) {
+    console.log("Control file provided - getting desired addons");
+
     const desiredAddons = await getDesiredAddons(controlFile);
     for (const [name, desiredAddon] of Object.entries(desiredAddons)) {
       const installedAddon = installedAddons[name];
@@ -274,6 +277,7 @@ export async function ManageAddons(domain: string, uuid: string, token: string, 
       }
     }
   } else {
+    console.log("No control file provided - updating all existing addons");
     for (const [_, installedAddon] of Object.entries(installedAddons)) {
       toUpdate.push(installedAddon);
     }
