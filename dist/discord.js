@@ -1,4 +1,3 @@
-import axios from "axios";
 const EMBED_COLORS = {
     update: 0x1E90FF,
     delete: 0xFF4500,
@@ -100,7 +99,7 @@ export const generateUpdateWebhook = async (addonUpdates, alertWebhook) => {
             throw new Error("No webhook URL provided");
         }
         console.log("Sending webhook to:", alertWebhook);
-        const response = await axios.post(alertWebhook, { embeds });
+        const response = await fetch(alertWebhook, { method: "POST", body: JSON.stringify({ embeds }) });
         return response.status === 200;
     };
     // Send Additions

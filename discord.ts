@@ -1,4 +1,3 @@
-import axios from "axios";
 import type { CommitDTO } from "./github.js";
 import type { AddonDeleteInfo, AddonCreateInfo, AddonUpdateInfo, InstalledAddon } from "./index_types.js";
 
@@ -146,7 +145,7 @@ export const generateUpdateWebhook = async (addonUpdates: ChangeMap, alertWebhoo
 
     console.log("Sending webhook to:", alertWebhook);
 
-    const response = await axios.post(alertWebhook, { embeds })
+    const response = await fetch(alertWebhook, { method: "POST", body: JSON.stringify({ embeds }) });
     return response.status === 200;
   };
 
