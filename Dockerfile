@@ -2,13 +2,13 @@ FROM node:20.5
 
 WORKDIR /app
 
-COPY src/package.json package.json
+COPY package.json package.json
 
 RUN npm i --force && npm install typescript -g 
 RUN npm update wispjs
 
-COPY src/tsconfig.json tsconfig.json
-COPY src/*.ts ./
+COPY tsconfig.json tsconfig.json
+COPY *.ts ./
 
 RUN tsc
 
