@@ -1,6 +1,6 @@
 import axios from "axios";
 import type { CommitDTO } from "./github.js";
-import type { AddonDeleteInfo, AddonCreateInfo, AddonUpdateInfo } from "./index_types.js";
+import type { AddonDeleteInfo, AddonCreateInfo, AddonUpdateInfo, InstalledAddon } from "./index_types.js";
 
 const EMBED_COLORS = {
   update: 0x1E90FF,
@@ -124,6 +124,12 @@ export interface ChangeMap {
   delete: AddonDeleteInfo[];
   create:  AddonCreateInfo[];
 };
+
+export interface FailureMap {
+  update: InstalledAddon[];
+  delete: InstalledAddon[];
+  create:  AddonCreateInfo[];
+}
 
 export const generateUpdateWebhook = async (addonUpdates: ChangeMap) => {
   const updates: any[] = [];

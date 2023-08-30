@@ -3,11 +3,11 @@ import YAML from "yaml";
 
 import { WispInterface } from "wispjs";
 import { generateUpdateWebhook } from "./discord.js";
-import { getGithubFile, gitCommitDiff } from "./github.js";
+import { gitCommitDiff } from "./github.js";
 
 import type { GitPullResult, GitCloneResult } from "wispjs";
 import type { CompareDTO } from "./github.js";
-import type { ChangeMap } from "./discord.js";
+import type { ChangeMap, FailureMap } from "./discord.js";
 import type { DesiredAddon, InstalledAddon, AddonDeleteInfo, AddonCreateInfo, AddonUpdateInfo  } from "./index_types.js";
 
 const logger = winston.createLogger({
@@ -17,11 +17,6 @@ const logger = winston.createLogger({
     new winston.transports.File({ filename: "server.log" })
   ]
 });
-
-const getControlFile = async () => {
-  const file = `servers/${process.env.REALM}/addons.yaml`;
-  return await getGithubFile("CFC-Servers", "cfc_infra", file);
-}
 
 const convertFindKeyToPath = (key: string) => {
     // "garrysmod/addons/niknaks/.git/config"
@@ -102,8 +97,7 @@ const getTrackedAddons = async (wisp: WispInterface) => {
   return installedAddons;
 }
 
-const getDesiredAddons = async () => {
-  const controlFile = await getControlFile();
+const getDesiredAddons = async (controlFile: string) => {
   const doc: any = YAML.parse(controlFile);
 
   const desiredAddons: {[key: string]: DesiredAddon} = {};
@@ -157,11 +151,6 @@ const cloneAddons = async (wisp: WispInterface, desiredAddons: DesiredAddon[]) =
     failures: failures,
     successes: successes
   };
-}
-
-const deleteAddons = async(wisp: WispInterface, addons: InstalledAddon[]) => {
-  await wisp.api.deleteFiles(addons.map(addon => addon.path));
-  logger.info("Deleted addons successfully\n");
 }
 
 const getCurrentBranch = async(wisp: WispInterface, addon: string) => {
@@ -220,97 +209,82 @@ interface AddonUpdate {
   isPrivate: boolean;
 }
 
-const updateAddons = async (wisp: WispInterface, addons: InstalledAddon[]) => {
-  const changes: AddonUpdate[] = [];
+const updateAddon = async (wisp: WispInterface, addon: InstalledAddon) => {
+  const currentCommit = addon.commit;
 
-  for(const addon of addons) {
-    const currentCommit = addon.commit;
+  try {
+    const pullResult: GitPullResult = await wisp.socket.gitPull(addon.path);
+    const newCommit = pullResult.output;
+    const isPrivate = pullResult.isPrivate;
 
-    // TODO: Handle pull errors
-    try {
-      const pullResult: GitPullResult = await wisp.socket.gitPull(addon.path);
-      const newCommit = pullResult.output;
-      const isPrivate = pullResult.isPrivate;
-
-      if (currentCommit !== newCommit) {
-        const change = await gitCommitDiff(addon.owner, addon.repo, currentCommit, newCommit);
-        const addonUpdate: AddonUpdate = {
-          addon: addon,
-          change: change,
-          isPrivate: isPrivate
-        }
-
-        logger.info(`Changes detected for ${addon.repo}`);
-        changes.push(addonUpdate);
-      } else {
-        logger.info(`No changes for ${addon.repo}`);
+    if (currentCommit !== newCommit) {
+      const change = await gitCommitDiff(addon.owner, addon.repo, currentCommit, newCommit);
+      const addonUpdate: AddonUpdate = {
+        addon: addon,
+        change: change,
+        isPrivate: isPrivate
       }
-    } catch (e) {
-      logger.error(`Failed to pull ${addon.repo}`);
-      logger.error(e);
-    }
-  }
 
-  return changes;
+      logger.info(`Changes detected for ${addon.repo}`);
+      return addonUpdate;
+    } else {
+      logger.info(`No changes for ${addon.repo}`);
+    }
+  } catch (e) {
+    logger.error(`Failed to pull ${addon.repo}`);
+    logger.error(e);
+  }
 }
 
-(async () => {
-  const domain = process.env.DOMAIN;
-  if (!domain) { throw new Error("DOMAIN environment variable not set"); }
-
-  const uuid = process.env.UUID;
-  if (!uuid) { throw new Error("UUID environment variable not set"); }
-
-  const token = process.env.TOKEN;
-  if (!token) { throw new Error("TOKEN environment variable not set"); }
-
-  const ghPAT = process.env.GH_PAT;
-  if (!ghPAT) { throw new Error("GH_PAT environment variable not set"); }
-
+export async function ManageAddons(domain: string, uuid: string, token: string, ghPAT: string, controlFile?: string) {
   const wisp = new WispInterface(domain, uuid, token);
   await wisp.connect(ghPAT);
 
   const installedAddons = await getTrackedAddons(wisp);
-  const desiredAddons = await getDesiredAddons();
 
   const toClone = [];
   const toUpdate = [];
   const toDelete = [];
 
-  for (const [name, desiredAddon] of Object.entries(desiredAddons)) {
-    const installedAddon = installedAddons[name];
+  if (controlFile) {
+    const desiredAddons = await getDesiredAddons(controlFile);
+    for (const [name, desiredAddon] of Object.entries(desiredAddons)) {
+      const installedAddon = installedAddons[name];
 
-    // If we don't have it, get it
-    if (!installedAddon) {
-      toClone.push(desiredAddon);
-      continue;
+      // If we don't have it, get it
+      if (!installedAddon) {
+        toClone.push(desiredAddon);
+        continue;
+      }
+
+      // Otherwise, we have to check if the branch is correct
+      // (This will trigger a deletion _and_ a clone)
+      if (installedAddon.branch === desiredAddon.branch) {
+        toUpdate.push(installedAddon);
+      } else {
+        logger.info(`Branch mismatch for ${name}: ${installedAddon.branch} != ${desiredAddon.branch}`);
+        toDelete.push(installedAddon);
+        toClone.push(desiredAddon);
+      }
     }
 
-    // Otherwise, we have to check if the branch is correct
-    // (This will trigger a deletion _and_ a clone)
-    if (installedAddon.branch === desiredAddon.branch) {
+    for (const [name, installedAddon] of Object.entries(installedAddons)) {
+      if (!(name in desiredAddons)) {
+        toDelete.push(installedAddon);
+      }
+    }
+  } else {
+    for (const [_, installedAddon] of Object.entries(installedAddons)) {
       toUpdate.push(installedAddon);
-    } else {
-      logger.info(`Branch mismatch for ${name}: ${installedAddon.branch} != ${desiredAddon.branch}`);
-      toDelete.push(installedAddon);
-      toClone.push(desiredAddon);
     }
   }
 
-  for (const [name, installedAddon] of Object.entries(installedAddons)) {
-    if (!(name in desiredAddons)) {
-      toDelete.push(installedAddon);
-    }
-  }
-
-  const allFailures: ChangeMap = {
+  const allFailures: FailureMap = {
     create: [],
     update: [],
     delete: []
   };
 
-  // TODO: How to handle branch change alerts?
-  // They're marked as both Deletes and Clones, which is a bit odd
   const allChanges: ChangeMap = {
     create: [],
     update: [],
@@ -319,15 +293,24 @@ const updateAddons = async (wisp: WispInterface, addons: InstalledAddon[]) => {
 
   // Deleted Addons
   if (toDelete.length > 0) {
-    await deleteAddons(wisp, toDelete);
     for (const addon of toDelete) {
-      const change: AddonDeleteInfo = {
-        addon: addon,
-      };
+      logger.info(`Deleting ${addon.repo}`);
 
-      allChanges.delete.push(change);
+      try {
+        await wisp.api.deleteFiles([addon.path]);
+
+        const change: AddonDeleteInfo = {
+          addon: addon,
+        };
+
+        allChanges.delete.push(change);
+
+      } catch (e) {
+        allFailures.delete.push(addon);
+        logger.error(`Failed to delete ${addon.repo}`);
+        logger.error(e);
+      }
     }
-
   } else {
     logger.info("No addons to delete");
   }
@@ -358,16 +341,20 @@ const updateAddons = async (wisp: WispInterface, addons: InstalledAddon[]) => {
 
   // Updated Addons
   if (toUpdate.length > 0) {
-    const updates: AddonUpdate[] = await updateAddons(wisp, toUpdate);
+    for (const addon of toUpdate) {
+      const update = await updateAddon(wisp, addon);
 
-    for (const update of updates) {
-      const changeInfo: AddonUpdateInfo = {
-        addon: update.addon,
-        updateInfo: update.change,
-        isPrivate: update.isPrivate
-      };
+      if (update) {
+        const changeInfo: AddonUpdateInfo = {
+          addon: update.addon,
+          updateInfo: update.change,
+          isPrivate: update.isPrivate
+        };
 
-      allChanges.update.push(changeInfo);
+        allChanges.update.push(changeInfo);
+      } else {
+        allFailures.update.push(addon);
+      }
     }
   } else {
     logger.info("No addons to update");
@@ -380,6 +367,4 @@ const updateAddons = async (wisp: WispInterface, addons: InstalledAddon[]) => {
   logger.info("Finished");
 
   await generateUpdateWebhook(allChanges);
-
-  process.exit(0);
-})();
+}
