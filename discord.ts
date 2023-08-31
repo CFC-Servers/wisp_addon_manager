@@ -146,6 +146,10 @@ export const generateUpdateWebhook = async (addonUpdates: ChangeMap, alertWebhoo
     console.log("Sending webhook to:", alertWebhook);
 
     const response = await fetch(alertWebhook, { method: "POST", body: JSON.stringify({ embeds }) });
+    if (!response.ok) {
+      console.error("Failed to send webhook:", response);
+    }
+
     return response.status === 200;
   };
 
@@ -163,15 +167,18 @@ export const generateUpdateWebhook = async (addonUpdates: ChangeMap, alertWebhoo
   }
 
   if (newAndDeleted.length > 0) {
-    await sendWebhook(newAndDeleted);
+    const success = await sendWebhook(newAndDeleted);
+    if (!success) {
+      console.error('Failed to send webhook for new and deleted addons:', newAndDeleted);
+    }
   }
 
   for (let i = 0; i < updates.length; i += 10) {
     const chunk = updates.slice(i, i + 10);
     const success = await sendWebhook(chunk);
-    // if (!success) {
-    //   console.error('Failed to send webhook for chunk:', chunk);
-    // }
+    if (!success) {
+      console.error('Failed to send webhook for chunk:', chunk);
+    }
   }
 };
 
