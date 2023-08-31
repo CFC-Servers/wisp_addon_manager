@@ -9,4 +9,4 @@ export interface FailureMap {
     delete: InstalledAddon[];
     create: AddonCreateInfo[];
 }
-export declare const generateUpdateWebhook: (addonUpdates: ChangeMap, alertWebhook: string) => Promise<void>;
+export declare const generateUpdateWebhook: (addonUpdates: ChangeMap, alertWebhook: string, serverName: string) => Promise<void>;

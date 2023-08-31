@@ -85,7 +85,7 @@ const generateAddedEmbed = (addonUpdates) => {
     return embed;
 };
 ;
-export const generateUpdateWebhook = async (addonUpdates, alertWebhook) => {
+export const generateUpdateWebhook = async (addonUpdates, alertWebhook, serverName) => {
     const updates = [];
     addonUpdates.update.forEach(update => {
         updates.push({
@@ -99,7 +99,8 @@ export const generateUpdateWebhook = async (addonUpdates, alertWebhook) => {
             throw new Error("No webhook URL provided");
         }
         console.log("Sending webhook to:", alertWebhook);
-        const body = JSON.stringify({ embeds });
+        const content = `🔸 Addon Updates for: **\`${serverName}\`**`;
+        const body = JSON.stringify({ embeds: embeds, content: content });
         const headers = new Headers({
             "Content-Type": "application/json",
         });

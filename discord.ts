@@ -130,7 +130,7 @@ export interface FailureMap {
   create:  AddonCreateInfo[];
 }
 
-export const generateUpdateWebhook = async (addonUpdates: ChangeMap, alertWebhook: string) => {
+export const generateUpdateWebhook = async (addonUpdates: ChangeMap, alertWebhook: string, serverName: string) => {
   const updates: any[] = [];
   addonUpdates.update.forEach(update => {
     updates.push({
@@ -144,7 +144,8 @@ export const generateUpdateWebhook = async (addonUpdates: ChangeMap, alertWebhoo
     if (!alertWebhook) { throw new Error("No webhook URL provided"); }
 
     console.log("Sending webhook to:", alertWebhook);
-    const body = JSON.stringify({ embeds });
+    const content = `🔸 Addon Updates for: **\`${serverName}\`**`;
+    const body = JSON.stringify({ embeds: embeds, content: content });
 
     const headers = new Headers({
       "Content-Type": "application/json",
