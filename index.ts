@@ -209,7 +209,7 @@ interface AddonUpdate {
   isPrivate: boolean;
 }
 
-const updateAddon = async (wisp: WispInterface, addon: InstalledAddon) => {
+const updateAddon = async (ghPAT: string, wisp: WispInterface, addon: InstalledAddon) => {
   const currentCommit = addon.commit;
 
   try {
@@ -218,7 +218,7 @@ const updateAddon = async (wisp: WispInterface, addon: InstalledAddon) => {
     const isPrivate = pullResult.isPrivate;
 
     if (currentCommit !== newCommit) {
-      const change = await gitCommitDiff(addon.owner, addon.repo, currentCommit, newCommit);
+      const change = await gitCommitDiff(ghPAT, addon.owner, addon.repo, currentCommit, newCommit);
       const addonUpdate: AddonUpdate = {
         addon: addon,
         change: change,
@@ -346,7 +346,7 @@ export async function ManageAddons(domain: string, uuid: string, token: string, 
   // Updated Addons
   if (toUpdate.length > 0) {
     for (const addon of toUpdate) {
-      const update = await updateAddon(wisp, addon);
+      const update = await updateAddon(ghPAT, wisp, addon);
 
       if (update) {
         const changeInfo: AddonUpdateInfo = {

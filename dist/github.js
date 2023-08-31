@@ -1,7 +1,7 @@
 import { Octokit } from "@octokit/rest";
-export const getGithubFile = async (owner, repo, path) => {
+export const getGithubFile = async (ghPAT, owner, repo, path) => {
     const octokit = new Octokit({
-        auth: process.env.GH_PAT
+        auth: ghPAT
     });
     console.log(`Getting file ${path} from ${repo} owned by ${owner}`);
     const response = await octokit.request('GET /repos/{owner}/{repo}/contents/{path}', {
@@ -16,9 +16,9 @@ export const getGithubFile = async (owner, repo, path) => {
     const data = response["data"];
     return data;
 };
-export const gitCommitDiff = async (owner, repo, oldSHA, newSHA) => {
+export const gitCommitDiff = async (ghPAT, owner, repo, oldSHA, newSHA) => {
     const octokit = new Octokit({
-        auth: process.env.GH_PAT
+        auth: ghPAT
     });
     // get first 6 of each sha
     oldSHA = oldSHA.substring(0, 6);

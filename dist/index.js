@@ -152,14 +152,14 @@ const getCurrentCommit = async (wisp, addon) => {
     currentCommit = currentCommit.replace(/[\r\n]+/g, "");
     return currentCommit;
 };
-const updateAddon = async (wisp, addon) => {
+const updateAddon = async (ghPAT, wisp, addon) => {
     const currentCommit = addon.commit;
     try {
         const pullResult = await wisp.socket.gitPull(addon.path);
         const newCommit = pullResult.output;
         const isPrivate = pullResult.isPrivate;
         if (currentCommit !== newCommit) {
-            const change = await gitCommitDiff(addon.owner, addon.repo, currentCommit, newCommit);
+            const change = await gitCommitDiff(ghPAT, addon.owner, addon.repo, currentCommit, newCommit);
             const addonUpdate = {
                 addon: addon,
                 change: change,
@@ -273,7 +273,7 @@ export async function ManageAddons(domain, uuid, token, ghPAT, alertWebhook, con
     // Updated Addons
     if (toUpdate.length > 0) {
         for (const addon of toUpdate) {
-            const update = await updateAddon(wisp, addon);
+            const update = await updateAddon(ghPAT, wisp, addon);
             if (update) {
                 const changeInfo = {
                     addon: update.addon,

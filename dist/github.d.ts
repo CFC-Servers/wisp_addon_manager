@@ -1,4 +1,4 @@
-export declare const getGithubFile: (owner: string, repo: string, path: string) => Promise<string>;
+export declare const getGithubFile: (ghPAT: string, owner: string, repo: string, path: string) => Promise<string>;
 interface AuthorDTO {
     username: string;
     avatar: string;
@@ -16,5 +16,5 @@ export interface CompareDTO {
     url: string;
     commits: CommitDTO[];
 }
-export declare const gitCommitDiff: (owner: string, repo: string, oldSHA: string, newSHA: string) => Promise<CompareDTO>;
+export declare const gitCommitDiff: (ghPAT: string, owner: string, repo: string, oldSHA: string, newSHA: string) => Promise<CompareDTO>;
 export {};

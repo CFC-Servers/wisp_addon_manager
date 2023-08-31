@@ -1,8 +1,8 @@
 import { Octokit } from "@octokit/rest";
 
-export const getGithubFile = async (owner: string, repo: string, path: string) => {
+export const getGithubFile = async (ghPAT: string, owner: string, repo: string, path: string) => {
   const octokit = new Octokit({ 
-    auth: process.env.GH_PAT
+    auth: ghPAT
   });
 
   console.log(`Getting file ${path} from ${repo} owned by ${owner}`);
@@ -140,9 +140,9 @@ export interface CompareDTO {
   commits: CommitDTO[];
 }
 
-export const gitCommitDiff = async (owner: string, repo: string, oldSHA: string, newSHA: string) => {
+export const gitCommitDiff = async (ghPAT: string, owner: string, repo: string, oldSHA: string, newSHA: string) => {
   const octokit = new Octokit({ 
-    auth: process.env.GH_PAT
+    auth: ghPAT
   });
 
   // get first 6 of each sha
