@@ -158,22 +158,22 @@ const updateAddon = async (ghPAT, wisp, addon) => {
         const pullResult = await wisp.socket.gitPull(addon.path);
         const newCommit = pullResult.output;
         const isPrivate = pullResult.isPrivate;
+        const addonUpdate = {
+            addon: addon,
+            isPrivate: isPrivate
+        };
         if (currentCommit !== newCommit) {
             const change = await gitCommitDiff(ghPAT, addon.owner, addon.repo, currentCommit, newCommit);
-            const addonUpdate = {
-                addon: addon,
-                change: change,
-                isPrivate: isPrivate
-            };
+            addonUpdate.change = change;
             logger.info(`Changes detected for ${addon.repo}`);
-            return addonUpdate;
         }
         else {
             logger.info(`No changes for ${addon.repo}`);
         }
+        return addonUpdate;
     }
     catch (e) {
-        logger.error(`Failed to pull ${addon.repo}`);
+        logger.error(`updateAddon failed for: ${addon.repo}`);
         logger.error(e);
     }
 };
@@ -274,17 +274,21 @@ export async function ManageAddons(domain, uuid, token, ghPAT, alertWebhook, con
     if (toUpdate.length > 0) {
         for (const addon of toUpdate) {
             const update = await updateAddon(ghPAT, wisp, addon);
-            if (update) {
-                const changeInfo = {
-                    addon: update.addon,
-                    updateInfo: update.change,
-                    isPrivate: update.isPrivate
-                };
-                allChanges.update.push(changeInfo);
-            }
-            else {
+            // If we didn't get an update, it failed
+            if (!update) {
                 allFailures.update.push(addon);
+                continue;
             }
+            // Or maybe it had no changes
+            if (!update.change) {
+                continue;
+            }
+            const changeInfo = {
+                addon: update.addon,
+                updateInfo: update.change,
+                isPrivate: update.isPrivate
+            };
+            allChanges.update.push(changeInfo);
         }
     }
     else {
