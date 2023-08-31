@@ -99,9 +99,11 @@ export const generateUpdateWebhook = async (addonUpdates, alertWebhook) => {
             throw new Error("No webhook URL provided");
         }
         console.log("Sending webhook to:", alertWebhook);
-        const response = await fetch(alertWebhook, { method: "POST", body: JSON.stringify({ embeds }) });
+        const body = JSON.stringify({ embeds });
+        console.log("Webhook body:", body);
+        const response = await fetch(alertWebhook, { method: "POST", body: body });
         if (!response.ok) {
-            console.error("Failed to send webhook:", JSON.stringify(response));
+            console.error("Failed to send webhook:", response.statusText, response.status, await response.text());
         }
         return response.status === 200;
     };
