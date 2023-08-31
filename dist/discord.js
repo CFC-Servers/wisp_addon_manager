@@ -100,15 +100,14 @@ export const generateUpdateWebhook = async (addonUpdates, alertWebhook) => {
         }
         console.log("Sending webhook to:", alertWebhook);
         const body = JSON.stringify({ embeds });
-        console.log("Webhook body:", body);
         const headers = new Headers({
             "Content-Type": "application/json",
         });
         const response = await fetch(alertWebhook, { method: "POST", body: body, headers: headers });
         if (!response.ok) {
-            console.error("Failed to send webhook:", response.statusText, response.status, await response.text());
+            console.error("Failed to send webhook", response.statusText, response.status, await response.text());
         }
-        return response.status === 200;
+        return response.ok;
     };
     // Send Additions
     const newAndDeleted = [];

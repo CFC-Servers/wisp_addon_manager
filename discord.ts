@@ -145,7 +145,6 @@ export const generateUpdateWebhook = async (addonUpdates: ChangeMap, alertWebhoo
 
     console.log("Sending webhook to:", alertWebhook);
     const body = JSON.stringify({ embeds });
-    console.log("Webhook body:", body);
 
     const headers = new Headers({
       "Content-Type": "application/json",
@@ -153,10 +152,10 @@ export const generateUpdateWebhook = async (addonUpdates: ChangeMap, alertWebhoo
 
     const response = await fetch(alertWebhook, { method: "POST", body: body, headers: headers });
     if (!response.ok) {
-      console.error("Failed to send webhook:", response.statusText, response.status, await response.text());
+      console.error("Failed to send webhook", response.statusText, response.status, await response.text());
     }
 
-    return response.status === 200;
+    return response.ok;
   };
 
   // Send Additions
