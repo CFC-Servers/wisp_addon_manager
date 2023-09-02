@@ -385,10 +385,10 @@ export async function ManageAddons(domain: string, uuid: string, serverName: str
   try {
     await wisp.connect(ghPAT);
     await manageAddons(wisp, serverName, ghPAT, alertWebhook, controlFile);
+    await wisp.disconnect();
   } catch (e) {
     logger.error(e);
-  } finally {
-    logger.info("Disconnecting from Wisp");
     await wisp.disconnect();
+    throw e;
   }
 }
