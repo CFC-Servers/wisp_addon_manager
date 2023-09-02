@@ -156,6 +156,8 @@ export const gitCommitDiff = async (ghPAT: string, owner: string, repo: string, 
     basehead: `${oldSHA}...${newSHA}`,
   })
 
+  console.log(content);
+
   const compareDTO: CompareDTO = {
     url: content.data.html_url,
     commits: []
