@@ -13,11 +13,12 @@ const generateUpdateEmbed = (addonUpdate: AddonUpdateInfo) => {
   const { addon, updateInfo, isPrivate } = addonUpdate;
   const maxMessageLength = 50;
 
-  let commitList: CommitDTO[] = [];
   if (isPrivate) {
     updateInfo.url = hiddenURL;
+  }
 
-    commitList = updateInfo.commits.map((commit: CommitDTO) => {
+  const commitList: CommitDTO[] = updateInfo.commits.map((commit: CommitDTO) => {
+    if (isPrivate) {
       commit.message = commit.message.replace(/[^ ]/g, "❚");
 
       commit.author.username = "unknown"
@@ -25,10 +26,10 @@ const generateUpdateEmbed = (addonUpdate: AddonUpdateInfo) => {
 
       commit.url = hiddenURL
       commit.sha = commit.sha.replace(/[^ ]/g, "❚");
+    }
 
-      return commit;
-    });
-  }
+    return commit;
+  });
 
   const embedTitle = `🚀 Updates for: **\`${addon.repo}\`**`;
   const diffURL = updateInfo.url;

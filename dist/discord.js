@@ -7,18 +7,19 @@ const hiddenURL = "https://github.com/404";
 const generateUpdateEmbed = (addonUpdate) => {
     const { addon, updateInfo, isPrivate } = addonUpdate;
     const maxMessageLength = 50;
-    let commitList = [];
     if (isPrivate) {
         updateInfo.url = hiddenURL;
-        commitList = updateInfo.commits.map((commit) => {
+    }
+    const commitList = updateInfo.commits.map((commit) => {
+        if (isPrivate) {
             commit.message = commit.message.replace(/[^ ]/g, "❚");
             commit.author.username = "unknown";
             commit.author.url = hiddenURL;
             commit.url = hiddenURL;
             commit.sha = commit.sha.replace(/[^ ]/g, "❚");
-            return commit;
-        });
-    }
+        }
+        return commit;
+    });
     const embedTitle = `🚀 Updates for: **\`${addon.repo}\`**`;
     const diffURL = updateInfo.url;
     const commitBody = commitList.map((commit) => {
