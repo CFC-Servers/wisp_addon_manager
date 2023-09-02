@@ -177,9 +177,7 @@ const updateAddon = async (ghPAT, wisp, addon) => {
         logger.error(e);
     }
 };
-export async function ManageAddons(domain, uuid, serverName, token, ghPAT, alertWebhook, controlFile) {
-    const wisp = new WispInterface(domain, uuid, token);
-    await wisp.connect(ghPAT);
+async function manageAddons(wisp, serverName, ghPAT, alertWebhook, controlFile) {
     console.log("Connected to Wisp - getting tracked addons");
     const installedAddons = await getTrackedAddons(wisp);
     const toClone = [];
@@ -299,4 +297,18 @@ export async function ManageAddons(domain, uuid, serverName, token, ghPAT, alert
     logger.info("\n");
     logger.info("Finished");
     await generateUpdateWebhook(allChanges, alertWebhook, serverName);
+}
+export async function ManageAddons(domain, uuid, serverName, token, ghPAT, alertWebhook, controlFile) {
+    const wisp = new WispInterface(domain, uuid, token);
+    try {
+        await wisp.connect(ghPAT);
+        await manageAddons(wisp, serverName, ghPAT, alertWebhook, controlFile);
+    }
+    catch (e) {
+        logger.error(e);
+    }
+    finally {
+        logger.info("Disconnecting from Wisp");
+        await wisp.disconnect();
+    }
 }
