@@ -7,7 +7,6 @@ const hiddenURL = "https://github.com/404";
 const generateUpdateEmbed = (addonUpdate) => {
     const { addon, updateInfo, isPrivate } = addonUpdate;
     const maxMessageLength = 50;
-    updateInfo.url = `${updateInfo.url}/tree/${addon.branch}`;
     let commitList = [];
     if (isPrivate) {
         updateInfo.url = hiddenURL;
@@ -40,11 +39,13 @@ const generateUpdateEmbed = (addonUpdate) => {
         const commitMessage = `\`\`\`${message}\`\`\``;
         return `${commitLine}\n${commitMessage}`;
     });
+    console.log("Generated commits:", commitBody.length);
     let description = "";
     for (let i = 0; i < commitBody.length; i++) {
         const andMore = `\n_And ${commitBody.length - i} more..._`;
         const commit = commitBody[i];
         if (description.length + commit.length > (2048 - andMore.length)) {
+            console.log("Truncating commits:", commitBody.length - i);
             description += andMore;
             break;
         }
@@ -56,6 +57,7 @@ const generateUpdateEmbed = (addonUpdate) => {
         url: diffURL,
         timestamp: new Date().toISOString(),
     };
+    console.log("Generated update embed:", embed);
     return embed;
 };
 const generateDeleteEmbed = (addonUpdates) => {
@@ -73,7 +75,7 @@ const generateDeleteEmbed = (addonUpdates) => {
 const generateAddedEmbed = (addonUpdates) => {
     const embedTitle = `✨ New Addons`;
     const commitList = addonUpdates.map((change) => {
-        const url = change.isPrivate ? hiddenURL : change.addon.url;
+        const url = change.isPrivate ? hiddenURL : `${change.addon.url}/tree/${change.addon.branch}`;
         const name = change.addon.repo;
         return `- [**${name}**](${url})`;
     }).join('\n');

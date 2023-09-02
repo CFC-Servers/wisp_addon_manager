@@ -13,8 +13,6 @@ const generateUpdateEmbed = (addonUpdate: AddonUpdateInfo) => {
   const { addon, updateInfo, isPrivate } = addonUpdate;
   const maxMessageLength = 50;
 
-  updateInfo.url = `${updateInfo.url}/tree/${addon.branch}`;
-
   let commitList: CommitDTO[] = [];
   if (isPrivate) {
     updateInfo.url = hiddenURL;
@@ -49,7 +47,6 @@ const generateUpdateEmbed = (addonUpdate: AddonUpdateInfo) => {
     const timestamp = Date.parse(commit.date) / 1000
     const timeLine = `_(<t:${timestamp}:R>)_`;
 
-
     const shortSha = commit.sha.substring(0, 6);
     const commitLink = `[\`${commitPrefix}${shortSha}\`](${commit.url})`;
     const authorLink = `[@${commit.author.username}](${commit.author.url})`;
@@ -60,12 +57,15 @@ const generateUpdateEmbed = (addonUpdate: AddonUpdateInfo) => {
     return `${commitLine}\n${commitMessage}`;
   });
 
+  console.log("Generated commits:", commitBody.length);
+
   let description = "";
   for (let i = 0; i < commitBody.length; i++) {
     const andMore = `\n_And ${commitBody.length - i} more..._`;
 
     const commit = commitBody[i];
     if (description.length + commit.length > (2048 - andMore.length)) {
+      console.log("Truncating commits:", commitBody.length - i);
       description += andMore;
       break;
     }
@@ -79,6 +79,8 @@ const generateUpdateEmbed = (addonUpdate: AddonUpdateInfo) => {
     url: diffURL,
     timestamp: new Date().toISOString(),
   };
+
+  console.log("Generated update embed:", embed);
 
   return embed;
 };
@@ -103,7 +105,7 @@ const generateAddedEmbed = (addonUpdates: AddonCreateInfo[]) => {
   const embedTitle = `✨ New Addons`;
 
   const commitList = addonUpdates.map((change: AddonCreateInfo) => {
-    const url = change.isPrivate ? hiddenURL : change.addon.url;
+    const url = change.isPrivate ? hiddenURL : `${change.addon.url}/tree/${change.addon.branch}`;
     const name = change.addon.repo;
 
     return `- [**${name}**](${url})`;
