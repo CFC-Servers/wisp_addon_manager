@@ -58,13 +58,11 @@ const getTrackedAddons = async (wisp) => {
     await makeAPICallInBatches(wisp, Object.values(installedAddons), async (wisp, addon) => {
         const branch = await getCurrentBranch(wisp, addon.path);
         addon.branch = branch;
-        logger.info(`Found branch ${branch} for ${addon.path}`);
     });
     // Get Commit
     await makeAPICallInBatches(wisp, Object.values(installedAddons), async (wisp, addon) => {
         const commit = await getCurrentCommit(wisp, addon);
         addon.commit = commit;
-        logger.info(`Found commit ${commit} for ${addon.path}`);
     });
     return installedAddons;
 };
@@ -154,7 +152,6 @@ const makeAPICallInBatches = async (wisp, addons, func) => {
 const getCurrentCommit = async (wisp, addon) => {
     const branch = addon.branch;
     const path = `${addon.path}/.git/refs/heads/${branch}`;
-    logger.info(`Getting commit from: ${path}`);
     let currentCommit = await wisp.api.readFile(path);
     currentCommit = currentCommit.replace(/[\r\n]+/g, "");
     return currentCommit;
