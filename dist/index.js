@@ -131,7 +131,7 @@ const getCurrentBranch = async (wisp, addon) => {
     return currentBranch;
 };
 const makeAPICallInBatches = async (wisp, addons, func) => {
-    const BATCH_SIZE = 10;
+    const BATCH_SIZE = 5;
     const makeCall = async (addon) => {
         try {
             await func(wisp, addon);
