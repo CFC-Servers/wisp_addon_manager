@@ -4,9 +4,13 @@ services:
   manager:
     build: .
     environment:
-      - TOKEN=$TOKEN
-      - UUID=$UUID
-      - DOMAIN=$DOMAIN
-      - GH_PAT=$GH_PAT
-      - ALERT_WEBHOOK=$ALERT_WEBHOOK
-      - REALM=$REALM
+      - WISP_DOMAIN=$WISP_DOMAIN
+      - WISP_UUID=$WISP_UUID
+      - WISP_TOKEN=$WISP_TOKEN
+      - SERVER_NAME=$SERVER_NAME
+      - GITHUB_PAT=$GITHUB_PAT
+      - DISCORD_ALERT_WEBHOOK=$DISCORD_ALERT_WEBHOOK
+      - DISCORD_FAILURE_WEBHOOK=${DISCORD_FAILURE_WEBHOOK-$DISCORD_ALERT_WEBHOOK}
+      - USE_CONTROL_FILE=$USE_CONTROL_FILE
+    volumes:
+      - ./control.yaml:/app/control.yaml:ro

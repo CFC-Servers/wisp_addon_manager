@@ -14,4 +14,4 @@ RUN tsc
 
 RUN ls -alh /app/node_modules/wispjs/dist
 
-CMD [ "node", "dist/index.js" ]
+CMD [ "node", "dist/docker.js" ]
