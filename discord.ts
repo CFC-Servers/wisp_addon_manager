@@ -1,5 +1,5 @@
 import type { CommitDTO } from "./github.js";
-import type { InstalledAddon } from "./index_types.js";
+import type { InstalledAddon, DesiredAddon } from "./index_types.js";
 import type { AddonDeleteInfo, AddonCreateInfo, AddonUpdateInfo } from "./index_types.js";
 import type { AddonDeleteFailure, AddonCreateFailure, AddonUpdateFailure } from "./index_types.js";
 
@@ -10,6 +10,11 @@ const EMBED_COLORS = {
 };
 
 const hiddenURL = "https://github.com/404";
+
+const getLinkForAddon = (addon: InstalledAddon | DesiredAddon) => {
+  const url = `${addon.url}/tree/${addon.branch}`;
+  return `[**${addon.repo}**](${url})`;
+};
 
 const generateUpdateEmbed = (addonUpdate: AddonUpdateInfo) => {
   const { addon, updateInfo, isPrivate } = addonUpdate;
@@ -202,7 +207,8 @@ export const generateFailureWebhook = async (addonFailures: FailureMap, alertWeb
     body = body + `🗑️ Failed to remove addons:\n`;
 
     const addonList = deletes.map((change: AddonDeleteFailure) => {
-      return `- [**${change.addon.repo}**](${change.addon.url}): \`${change.error}\``;
+      const url = getLinkForAddon(change.addon);
+      return `- ${url}: \`${change.error}\``;
     });
 
     body = body + addonList.join('\n');
@@ -213,7 +219,8 @@ export const generateFailureWebhook = async (addonFailures: FailureMap, alertWeb
     body = body + `✨ Failed to add addons:\n`;
 
     const addonList = creates.map((change: AddonCreateFailure) => {
-      return `- [**${change.addon.repo}**](${change.addon.url}): \`${change.error}\``;
+      const url = getLinkForAddon(change.addon);
+      return `- ${url}: \`${change.error}\``;
     });
 
     body = body + addonList.join('\n');
@@ -225,7 +232,8 @@ export const generateFailureWebhook = async (addonFailures: FailureMap, alertWeb
     body = body + `🚀 Failed to update addons:\n`;
 
     const addonList = updates.map((change: AddonUpdateFailure) => {
-      return `- [**${change.addon.repo}**](${change.addon.url}): \`${change.error}\``;
+      const url = getLinkForAddon(change.addon);
+      return `- ${url}: \`${change.error}\``;
     });
 
     body = body + addonList.join('\n');

@@ -4,6 +4,10 @@ const EMBED_COLORS = {
     create: 0x32CD32,
 };
 const hiddenURL = "https://github.com/404";
+const getLinkForAddon = (addon) => {
+    const url = `${addon.url}/tree/${addon.branch}`;
+    return `[**${addon.repo}**](${url})`;
+};
 const generateUpdateEmbed = (addonUpdate) => {
     const { addon, updateInfo, isPrivate } = addonUpdate;
     const maxMessageLength = 50;
@@ -145,7 +149,8 @@ export const generateFailureWebhook = async (addonFailures, alertWebhook, server
     if (deletes.length > 0) {
         body = body + `🗑️ Failed to remove addons:\n`;
         const addonList = deletes.map((change) => {
-            return `- [**${change.addon.repo}**](${change.addon.url}): \`${change.error}\``;
+            const url = getLinkForAddon(change.addon);
+            return `- ${url}: \`${change.error}\``;
         });
         body = body + addonList.join('\n');
     }
@@ -153,7 +158,8 @@ export const generateFailureWebhook = async (addonFailures, alertWebhook, server
     if (creates.length > 0) {
         body = body + `✨ Failed to add addons:\n`;
         const addonList = creates.map((change) => {
-            return `- [**${change.addon.repo}**](${change.addon.url}): \`${change.error}\``;
+            const url = getLinkForAddon(change.addon);
+            return `- ${url}: \`${change.error}\``;
         });
         body = body + addonList.join('\n');
     }
@@ -161,7 +167,8 @@ export const generateFailureWebhook = async (addonFailures, alertWebhook, server
     if (updates.length > 0) {
         body = body + `🚀 Failed to update addons:\n`;
         const addonList = updates.map((change) => {
-            return `- [**${change.addon.repo}**](${change.addon.url}): \`${change.error}\``;
+            const url = getLinkForAddon(change.addon);
+            return `- ${url}: \`${change.error}\``;
         });
         body = body + addonList.join('\n');
     }
