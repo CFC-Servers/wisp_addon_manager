@@ -12,7 +12,7 @@ const EMBED_COLORS = {
 const hiddenURL = "https://github.com/404";
 
 const getLinkForAddon = (addon: InstalledAddon | DesiredAddon) => {
-  const url = `${addon.url}/tree/${addon.branch}`;
+  const url = `${addon.url.replace(".git", "")}/tree/${addon.branch}`;
   return `[**${addon.repo}**](${url})`;
 };
 
