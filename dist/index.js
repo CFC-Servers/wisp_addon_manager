@@ -1,6 +1,6 @@
 import YAML from "yaml";
 import { WispInterface } from "wispjs";
-import { generateUpdateWebhook } from "./discord.js";
+import { generateUpdateWebhook, generateFailureWebhook } from "./discord.js";
 import { gitCommitDiff } from "./github.js";
 const logger = {
     info: (msg) => {
@@ -84,8 +84,8 @@ const getDesiredAddons = async (controlFile) => {
     return desiredAddons;
 };
 const cloneAddons = async (wisp, desiredAddons) => {
-    const failures = [];
     const successes = [];
+    const failures = [];
     for (const desiredAddon of desiredAddons) {
         const url = `${desiredAddon.url}.git`;
         const branch = desiredAddon.branch;
@@ -100,9 +100,16 @@ const cloneAddons = async (wisp, desiredAddons) => {
             logger.info(`Cloned ${url} to /garrysmod/addons\n`);
         }
         catch (e) {
+            let errorMessage = "Unknown Error";
+            if (typeof e === "string") {
+                errorMessage = e;
+            }
+            else if (e instanceof Error) {
+                errorMessage = e.toString();
+            }
             const failedUpdate = {
                 addon: desiredAddon,
-                isPrivate: false
+                error: errorMessage
             };
             failures.push(failedUpdate);
             logger.error(`Failed to clone ${url}`);
@@ -154,28 +161,22 @@ const getCurrentCommit = async (wisp, addon) => {
 };
 const updateAddon = async (ghPAT, wisp, addon) => {
     const currentCommit = addon.commit;
-    try {
-        const pullResult = await wisp.socket.gitPull(addon.path);
-        const newCommit = pullResult.output;
-        const isPrivate = pullResult.isPrivate;
-        const addonUpdate = {
-            addon: addon,
-            isPrivate: isPrivate
-        };
-        if (currentCommit !== newCommit) {
-            const change = await gitCommitDiff(ghPAT, addon.owner, addon.repo, currentCommit, newCommit);
-            addonUpdate.change = change;
-            logger.info(`Changes detected for ${addon.repo}`);
-        }
-        else {
-            logger.info(`No changes for ${addon.repo}`);
-        }
-        return addonUpdate;
+    const pullResult = await wisp.socket.gitPull(addon.path);
+    const newCommit = pullResult.output;
+    const isPrivate = pullResult.isPrivate;
+    const addonUpdate = {
+        addon: addon,
+        isPrivate: isPrivate
+    };
+    if (currentCommit !== newCommit) {
+        const change = await gitCommitDiff(ghPAT, addon.owner, addon.repo, currentCommit, newCommit);
+        addonUpdate.change = change;
+        logger.info(`Changes detected for ${addon.repo}`);
     }
-    catch (e) {
-        logger.error(`updateAddon failed for: ${addon.repo}`);
-        logger.error(e);
+    else {
+        logger.info(`No changes for ${addon.repo}`);
     }
+    return addonUpdate;
 };
 async function manageAddons(wisp, serverName, ghPAT, alertWebhook, controlFile) {
     console.log("Connected to Wisp - getting tracked addons");
@@ -238,7 +239,18 @@ async function manageAddons(wisp, serverName, ghPAT, alertWebhook, controlFile) 
                 allChanges.delete.push(change);
             }
             catch (e) {
-                allFailures.delete.push(addon);
+                let errorMessage = "Unknown Error";
+                if (typeof e === "string") {
+                    errorMessage = e;
+                }
+                else if (e instanceof Error) {
+                    errorMessage = e.toString();
+                }
+                const failure = {
+                    addon: addon,
+                    error: errorMessage
+                };
+                allFailures.delete.push(failure);
                 logger.error(`Failed to delete ${addon.repo}`);
                 logger.error(e);
             }
@@ -271,22 +283,33 @@ async function manageAddons(wisp, serverName, ghPAT, alertWebhook, controlFile) 
     // Updated Addons
     if (toUpdate.length > 0) {
         for (const addon of toUpdate) {
-            const update = await updateAddon(ghPAT, wisp, addon);
-            // If we didn't get an update, it failed
-            if (!update) {
-                allFailures.update.push(addon);
-                continue;
+            try {
+                const update = await updateAddon(ghPAT, wisp, addon);
+                // Ignore it if it had no changes
+                if (!update.change) {
+                    continue;
+                }
+                const changeInfo = {
+                    addon: update.addon,
+                    updateInfo: update.change,
+                    isPrivate: update.isPrivate
+                };
+                allChanges.update.push(changeInfo);
             }
-            // Or maybe it had no changes
-            if (!update.change) {
-                continue;
+            catch (e) {
+                let errorMessage = "Unknown Error";
+                if (typeof e === "string") {
+                    errorMessage = e;
+                }
+                else if (e instanceof Error) {
+                    errorMessage = e.toString();
+                }
+                const failure = {
+                    addon: addon,
+                    error: errorMessage
+                };
+                allFailures.update.push(failure);
             }
-            const changeInfo = {
-                addon: update.addon,
-                updateInfo: update.change,
-                isPrivate: update.isPrivate
-            };
-            allChanges.update.push(changeInfo);
         }
     }
     else {
@@ -297,6 +320,7 @@ async function manageAddons(wisp, serverName, ghPAT, alertWebhook, controlFile) 
     logger.info("\n");
     logger.info("Finished");
     await generateUpdateWebhook(allChanges, alertWebhook, serverName);
+    await generateFailureWebhook(allFailures, alertWebhook, serverName);
 }
 export async function ManageAddons(domain, uuid, serverName, token, ghPAT, alertWebhook, controlFile) {
     const wisp = new WispInterface(domain, uuid, token);

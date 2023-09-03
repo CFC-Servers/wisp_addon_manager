@@ -26,4 +26,15 @@ export interface AddonUpdateInfo {
     updateInfo: CompareDTO;
     isPrivate?: boolean;
 }
-export type AddonChangeInfo = AddonDeleteInfo | AddonCreateInfo | AddonUpdateInfo;
+export interface AddonDeleteFailure {
+    addon: InstalledAddon;
+    error: string;
+}
+export interface AddonCreateFailure {
+    addon: DesiredAddon;
+    error: string;
+}
+export interface AddonUpdateFailure {
+    addon: InstalledAddon;
+    error: string;
+}

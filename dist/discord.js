@@ -138,3 +138,46 @@ export const generateUpdateWebhook = async (addonUpdates, alertWebhook, serverNa
         }
     }
 };
+export const generateFailureWebhook = async (addonFailures, alertWebhook, serverName) => {
+    const bodyHeader = "## ❌ Update failures for: **\`${serverName}\`**\n\n";
+    let body = "";
+    const deletes = addonFailures.delete;
+    if (deletes.length > 0) {
+        body = body + `🗑️ Failed to remove addons:`;
+        const addonList = deletes.map((change) => {
+            return `- [**${change.addon.repo}**](${change.addon.url}): \`${change.error}\``;
+        });
+        body = body + addonList.join('\n');
+    }
+    const creates = addonFailures.create;
+    if (creates.length > 0) {
+        body = body + `✨ Failed to add addons:`;
+        const addonList = creates.map((change) => {
+            return `- [**${change.addon.repo}**](${change.addon.url}): \`${change.error}\``;
+        });
+        body = body + addonList.join('\n');
+    }
+    const updates = addonFailures.update;
+    if (updates.length > 0) {
+        body = body + `🚀 Failed to update addons:`;
+        const addonList = updates.map((change) => {
+            return `- [**${change.addon.repo}**](${change.addon.url}): \`${change.error}\``;
+        });
+        body = body + addonList.join('\n');
+    }
+    if (body.length === 0) {
+        console.log("No failures to report");
+        return;
+    }
+    body = bodyHeader + body;
+    console.log("Sending failure webhook to:", alertWebhook);
+    const requestBody = JSON.stringify({ content: body });
+    const headers = new Headers({
+        "Content-Type": "application/json",
+    });
+    const response = await fetch(alertWebhook, { method: "POST", body: requestBody, headers: headers });
+    if (!response.ok) {
+        console.error("Failed to send webhook", response.statusText, response.status, await response.text());
+    }
+    return response.ok;
+};

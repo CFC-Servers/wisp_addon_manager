@@ -1,5 +1,7 @@
 import type { CommitDTO } from "./github.js";
-import type { AddonDeleteInfo, AddonCreateInfo, AddonUpdateInfo, InstalledAddon } from "./index_types.js";
+import type { InstalledAddon } from "./index_types.js";
+import type { AddonDeleteInfo, AddonCreateInfo, AddonUpdateInfo } from "./index_types.js";
+import type { AddonDeleteFailure, AddonCreateFailure, AddonUpdateFailure } from "./index_types.js";
 
 const EMBED_COLORS = {
   update: 0x1E90FF,
@@ -128,9 +130,9 @@ export interface ChangeMap {
 };
 
 export interface FailureMap {
-  update: InstalledAddon[];
-  delete: InstalledAddon[];
-  create:  AddonCreateInfo[];
+  update: AddonUpdateFailure[];
+  delete: AddonDeleteFailure[];
+  create: AddonCreateFailure[];
 }
 
 export const generateUpdateWebhook = async (addonUpdates: ChangeMap, alertWebhook: string, serverName: string) => {
@@ -191,3 +193,62 @@ export const generateUpdateWebhook = async (addonUpdates: ChangeMap, alertWebhoo
   }
 };
 
+export const generateFailureWebhook = async (addonFailures: FailureMap, alertWebhook: string, serverName: string) => {
+  const bodyHeader = "## ❌ Update failures for: **\`${serverName}\`**\n\n";
+  let body = "";
+
+  const deletes = addonFailures.delete;
+  if (deletes.length > 0) {
+    body = body + `🗑️ Failed to remove addons:`;
+
+    const addonList = deletes.map((change: AddonDeleteFailure) => {
+      return `- [**${change.addon.repo}**](${change.addon.url}): \`${change.error}\``;
+    });
+
+    body = body + addonList.join('\n');
+  }
+
+  const creates = addonFailures.create;
+  if (creates.length > 0) {
+    body = body + `✨ Failed to add addons:`;
+
+    const addonList = creates.map((change: AddonCreateFailure) => {
+      return `- [**${change.addon.repo}**](${change.addon.url}): \`${change.error}\``;
+    });
+
+    body = body + addonList.join('\n');
+  }
+
+
+  const updates = addonFailures.update;
+  if (updates.length > 0) {
+    body = body + `🚀 Failed to update addons:`;
+
+    const addonList = updates.map((change: AddonUpdateFailure) => {
+      return `- [**${change.addon.repo}**](${change.addon.url}): \`${change.error}\``;
+    });
+
+    body = body + addonList.join('\n');
+  }
+
+  if (body.length === 0) {
+    console.log("No failures to report");
+    return;
+  }
+
+  body = bodyHeader + body;
+
+  console.log("Sending failure webhook to:", alertWebhook);
+  const requestBody = JSON.stringify({ content: body });
+
+  const headers = new Headers({
+    "Content-Type": "application/json",
+  });
+
+  const response = await fetch(alertWebhook, { method: "POST", body: requestBody, headers: headers });
+  if (!response.ok) {
+    console.error("Failed to send webhook", response.statusText, response.status, await response.text());
+  }
+
+  return response.ok;
+}
