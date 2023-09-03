@@ -139,11 +139,11 @@ export const generateUpdateWebhook = async (addonUpdates, alertWebhook, serverNa
     }
 };
 export const generateFailureWebhook = async (addonFailures, alertWebhook, serverName) => {
-    const bodyHeader = "## ❌ Update failures for: **\`${serverName}\`**\n\n";
+    const bodyHeader = `### ❌ Failures encountered while updating: **\`${serverName}\`**\n\n`;
     let body = "";
     const deletes = addonFailures.delete;
     if (deletes.length > 0) {
-        body = body + `🗑️ Failed to remove addons:`;
+        body = body + `🗑️ Failed to remove addons:\n`;
         const addonList = deletes.map((change) => {
             return `- [**${change.addon.repo}**](${change.addon.url}): \`${change.error}\``;
         });
@@ -151,7 +151,7 @@ export const generateFailureWebhook = async (addonFailures, alertWebhook, server
     }
     const creates = addonFailures.create;
     if (creates.length > 0) {
-        body = body + `✨ Failed to add addons:`;
+        body = body + `✨ Failed to add addons:\n`;
         const addonList = creates.map((change) => {
             return `- [**${change.addon.repo}**](${change.addon.url}): \`${change.error}\``;
         });
@@ -159,7 +159,7 @@ export const generateFailureWebhook = async (addonFailures, alertWebhook, server
     }
     const updates = addonFailures.update;
     if (updates.length > 0) {
-        body = body + `🚀 Failed to update addons:`;
+        body = body + `🚀 Failed to update addons:\n`;
         const addonList = updates.map((change) => {
             return `- [**${change.addon.repo}**](${change.addon.url}): \`${change.error}\``;
         });
