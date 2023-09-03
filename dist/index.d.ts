@@ -1,1 +1,1 @@
-export declare function ManageAddons(domain: string, uuid: string, serverName: string, token: string, ghPAT: string, alertWebhook: string, controlFile?: string): Promise<void>;
+export declare function ManageAddons(domain: string, uuid: string, serverName: string, token: string, ghPAT: string, alertWebhook: string, failureWebhook: string, controlFile?: string): Promise<void>;

@@ -244,7 +244,7 @@ const updateAddon = async (ghPAT: string, wisp: WispInterface, addon: InstalledA
   return addonUpdate;
 }
 
-async function manageAddons(wisp: any, serverName: string, ghPAT: string, alertWebhook: string, controlFile?: string) {
+async function manageAddons(wisp: any, serverName: string, ghPAT: string, alertWebhook: string, failureWebhook: string, controlFile?: string) {
   console.log("Connected to Wisp - getting tracked addons");
   const installedAddons = await getTrackedAddons(wisp);
 
@@ -405,15 +405,15 @@ async function manageAddons(wisp: any, serverName: string, ghPAT: string, alertW
   logger.info("Finished");
 
   await generateUpdateWebhook(allChanges, alertWebhook, serverName);
-  await generateFailureWebhook(allFailures, alertWebhook, serverName);
+  await generateFailureWebhook(allFailures, failureWebhook, serverName);
 }
 
-export async function ManageAddons(domain: string, uuid: string, serverName: string, token: string, ghPAT: string, alertWebhook: string, controlFile?: string) {
+export async function ManageAddons(domain: string, uuid: string, serverName: string, token: string, ghPAT: string, alertWebhook: string, failureWebhook: string, controlFile?: string) {
   const wisp = new WispInterface(domain, uuid, token);
 
   try {
     await wisp.connect(ghPAT);
-    await manageAddons(wisp, serverName, ghPAT, alertWebhook, controlFile);
+    await manageAddons(wisp, serverName, ghPAT, alertWebhook, failureWebhook, controlFile);
     await wisp.disconnect();
   } catch (e) {
     logger.error(e);
