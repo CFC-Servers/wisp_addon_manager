@@ -57,7 +57,16 @@ import { ManageAddons } from "./index.js";
   }
 
   try {
-    await ManageAddons(domain, uuid, serverName, token, ghPAT, alertWebhook, failureWebhook, controlFile);
+    await ManageAddons({
+        domain: domain,
+        uuid: uuid,
+        serverName: serverName,
+        token: token,
+        ghPAT: ghPAT,
+        alertWebhook: alertWebhook,
+        failureWebhook: failureWebhook,
+        controlFile: controlFile
+    });
     console.log("Addon Manager completed successfully!");
   } catch (e) {
     console.error("Addon Manager did not complete successfully!");

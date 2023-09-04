@@ -319,7 +319,8 @@ async function manageAddons(wisp, serverName, ghPAT, alertWebhook, failureWebhoo
     await generateUpdateWebhook(allChanges, alertWebhook, serverName);
     await generateFailureWebhook(allFailures, failureWebhook, serverName);
 }
-export async function ManageAddons(domain, uuid, serverName, token, ghPAT, alertWebhook, failureWebhook, controlFile) {
+export async function ManageAddons(config) {
+    const { domain, uuid, serverName, token, ghPAT, alertWebhook, failureWebhook, controlFile } = config;
     const wisp = new WispInterface(domain, uuid, token);
     try {
         await wisp.connect(ghPAT);

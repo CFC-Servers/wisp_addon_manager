@@ -19,6 +19,7 @@
   },
   "homepage": "https://github.com/CFC-Servers/wisp_addon_manager#readme",
   "dependencies": {
+    "@actions/core": "^1.10.0",
     "@octokit/rest": "^20.0.1",
     "socket.io-client": "^4.7.2",
     "typescript": "^5.1.6",
