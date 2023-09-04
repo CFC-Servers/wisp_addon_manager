@@ -6,7 +6,9 @@
   "types": "dist/index.d.ts",
   "description": "Manages a Wisp-based Gmod server's addons",
   "scripts": {
-    "start": "tsc && node dist/index.js"
+    "start": "tsc && node dist/index.js",
+    "build-module": "npx @vercel/ncc build index.ts -o dist",
+    "build-actions": "npx @vercel/ncc build action.ts -o action_dist"
   },
   "repository": {
     "type": "git",
