@@ -1,14 +1,13 @@
 {
   "name": "wisp_addon_manager",
-  "version": "1.0.0",
+  "version": "0.1.0",
   "type": "module",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
   "description": "Manages a Wisp-based Gmod server's addons",
   "scripts": {
     "start": "tsc && node dist/index.js",
-    "build-module": "npx @vercel/ncc build index.ts -o dist",
-    "build-actions": "npx @vercel/ncc build action.ts -o action_dist"
+    "build": "npx @vercel/ncc build index.ts"
   },
   "repository": {
     "type": "git",
