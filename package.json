@@ -21,7 +21,6 @@
   "homepage": "https://github.com/CFC-Servers/wisp_addon_manager#readme",
   "dependencies": {
     "@octokit/rest": "^20.0.1",
-    "@types/lzma-native": "^4.0.2",
     "socket.io-client": "^4.7.2",
     "typescript": "^5.1.6",
     "wispjs": "github:CFC-Servers/wispjs",
