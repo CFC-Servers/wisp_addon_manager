@@ -38,3 +38,8 @@ export interface AddonUpdateFailure {
     addon: InstalledAddon;
     error: string;
 }
+export interface AddonGitInfo {
+    addon: string;
+    branch: string;
+    commit: string;
+}
