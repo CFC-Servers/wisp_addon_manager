@@ -1,5 +1,5 @@
 import YAML from "yaml";
-import lzma from "lzma-native";
+// import lzma from "lzma-native";
 
 import { WispInterface } from "wispjs";
 import { generateUpdateWebhook, generateFailureWebhook } from "./discord.js";
