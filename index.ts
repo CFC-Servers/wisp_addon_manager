@@ -1,4 +1,5 @@
 import YAML from "yaml";
+import lzma from "lzma-native";
 
 import { WispInterface } from "wispjs";
 import { generateUpdateWebhook, generateFailureWebhook } from "./discord.js";
@@ -10,6 +11,7 @@ import type { ChangeMap, FailureMap } from "./discord.js";
 import type { DesiredAddon, InstalledAddon }  from "./index_types.js";
 import type { AddonDeleteInfo, AddonCreateInfo, AddonUpdateInfo  } from "./index_types.js";
 import type { AddonDeleteFailure, AddonCreateFailure, AddonUpdateFailure } from "./index_types.js";
+import type { AddonGitInfo } from "./index_types.js";
 
 const logger = {
   info: (msg: string) => {
@@ -53,6 +55,39 @@ const getOwnerRepoFromURL = (url: string) => {
   return [owner, repo];
 }
 
+const setGitInfo = async(wisp: WispInterface, addons: {[key: string]: InstalledAddon}) => {
+  const dirToAddon: {[key: string]: InstalledAddon} = {};
+  for (const [_, addon] of Object.entries(addons)) {
+    const dirSpl = addon.path.split("/");
+    const dir = dirSpl[dirSpl.length - 1];
+
+    dirToAddon[dir] = addon;
+  }
+
+  const nonce = (Math.random() + 1).toString(36).substring(7);
+  const command = `nanny ${nonce} gitinfo`;
+  const response = await wisp.socket.sendCommandNonce(`${nonce}: `, command);
+
+  // const buf = Buffer.from(response, "base64");
+  // console.log(buf);
+
+  // @ts-ignore
+  // const jsonBuf: Buffer = await lzma.decompress(buf);
+  // const json = jsonBuf.toString("utf8");
+
+  const json = response;
+
+  const gitInfo: AddonGitInfo[] = JSON.parse(json);
+
+  gitInfo.forEach((gitInfo) => {
+    console.log(`looking up: "${gitInfo.addon}"`);
+    const addon = dirToAddon[gitInfo.addon];
+    console.log( "Adding git info to:", addon.path, gitInfo.addon, gitInfo.branch, gitInfo.commit );
+    addon.branch = gitInfo.branch;
+    addon.commit = gitInfo.commit;
+  });
+}
+
 // TODO: Only track addons that are in the addons folder?
 const getTrackedAddons = async (wisp: WispInterface) => {
   const addonSearch = await wisp.socket.filesearch(`remote "origin"`);
@@ -82,17 +117,7 @@ const getTrackedAddons = async (wisp: WispInterface) => {
     installedAddons[repo] = addon;
   }
 
-  // Get Branch
-  await makeAPICallInBatches(wisp, Object.values(installedAddons), async (wisp: WispInterface, addon: InstalledAddon) => {
-    const branch = await getCurrentBranch(wisp, addon.path);
-    addon.branch = branch
-  });
-
-  // Get Commit
-  await makeAPICallInBatches(wisp, Object.values(installedAddons), async (wisp: WispInterface, addon: InstalledAddon) => {
-    const commit = await getCurrentCommit(wisp, addon);
-    addon.commit = commit;
-  });
+  await setGitInfo(wisp, installedAddons);
 
   return installedAddons;
 }
@@ -116,7 +141,6 @@ const getDesiredAddons = async (controlFile: string) => {
 
   return desiredAddons;
 }
-
 
 const cloneAddons = async (wisp: WispInterface, desiredAddons: DesiredAddon[]) => {
   const successes: AddonCreateInfo[] = [];
@@ -198,17 +222,6 @@ const makeAPICallInBatches = async (wisp: WispInterface, addons: InstalledAddon[
     const batch = addons.slice(i, i + BATCH_SIZE);
     await processBatch(batch);
   }
-}
-
-const getCurrentCommit = async (wisp: WispInterface, addon: InstalledAddon) => {
-  const branch = addon.branch;
-
-  const path = `${addon.path}/.git/refs/heads/${branch}`;
-
-  let currentCommit = await wisp.api.readFile(path);
-  currentCommit = currentCommit.replace(/[\r\n]+/g,"");
-
-  return currentCommit;
 }
 
 interface AddonUpdate {

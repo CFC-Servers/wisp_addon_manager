@@ -49,3 +49,8 @@ export interface AddonUpdateFailure {
   error: string;
 }
 
+export interface AddonGitInfo {
+  addon: string;
+  branch: string;
+  commit: string;
+}

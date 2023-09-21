@@ -12,5 +12,7 @@ services:
       - DISCORD_ALERT_WEBHOOK=$DISCORD_ALERT_WEBHOOK
       - DISCORD_FAILURE_WEBHOOK=${DISCORD_FAILURE_WEBHOOK-$DISCORD_ALERT_WEBHOOK}
       - USE_CONTROL_FILE=$USE_CONTROL_FILE
+    env_file:
+      - .env
     volumes:
       - ./control.yaml:/app/control.yaml:ro
