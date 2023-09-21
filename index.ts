@@ -80,9 +80,7 @@ const setGitInfo = async(wisp: WispInterface, addons: {[key: string]: InstalledA
   const gitInfo: AddonGitInfo[] = JSON.parse(json);
 
   gitInfo.forEach((gitInfo) => {
-    console.log(`looking up: "${gitInfo.addon}"`);
     const addon = dirToAddon[gitInfo.addon];
-    console.log( "Adding git info to:", addon.path, gitInfo.addon, gitInfo.branch, gitInfo.commit );
     addon.branch = gitInfo.branch;
     addon.commit = gitInfo.commit;
   });
