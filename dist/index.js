@@ -23659,39 +23659,24 @@ const cloneAddons = async (wisp, desiredAddons) => {
         successes: successes
     };
 };
-const getCurrentBranch = async (wisp, addon) => {
-    const path = `${addon}/.git/HEAD`;
-    // "ref: refs/heads/feature/rewrite"
-    let currentRef = await wisp.api.readFile(path);
-    currentRef = currentRef.split("\n")[0];
-    // "refs/heads/feature/rewrite"
-    currentRef = currentRef.split(" ")[1].trim();
-    // "feature/rewrite"
-    const currentBranch = currentRef.split("refs/heads/")[1];
-    return currentBranch;
-};
-const makeAPICallInBatches = async (wisp, addons, func) => {
-    const BATCH_SIZE = 5;
-    const makeCall = async (addon) => {
-        try {
-            await func(wisp, addon);
-        }
-        catch (e) {
-            logger.error(e);
-            return null;
-        }
-    };
-    const processBatch = async (batch) => {
-        return await Promise.all(batch.map(makeCall));
-    };
-    for (let i = 0; i < addons.length; i += BATCH_SIZE) {
-        const batch = addons.slice(i, i + BATCH_SIZE);
-        await processBatch(batch);
-    }
-};
 const updateAddon = async (ghPAT, wisp, addon) => {
     const currentCommit = addon.commit;
-    const pullResult = await wisp.socket.gitPull(addon.path);
+    let pullResult;
+    try {
+        pullResult = await wisp.socket.gitPull(addon.path);
+    }
+    catch (e) {
+        if (e.toString() == "Unknown Error. Try again later.") {
+            console.log("Unknown Error. Try again later. - deleting and recloning", addon.path);
+            // Delete and reclone
+            await wisp.api.deleteFiles([addon.path]);
+            await wisp.socket.gitClone(addon.url, "/garrysmod/addons", addon.branch);
+            pullResult = await wisp.socket.gitPull(addon.path);
+        }
+        else {
+            throw (e);
+        }
+    }
     const newCommit = pullResult.output;
     const isPrivate = pullResult.isPrivate;
     const addonUpdate = {
