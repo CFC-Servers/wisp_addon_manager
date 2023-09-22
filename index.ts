@@ -197,7 +197,16 @@ const updateAddon = async (ghPAT: string, wisp: WispInterface, addon: InstalledA
   try {
     pullResult = await wisp.socket.gitPull(addon.path);
   } catch (e: any) {
-    if (e.toString() == "Unknown Error. Try again later.") {
+    let errorMessage = "Unknown Error";
+    if (typeof e === "string") {
+      errorMessage = e;
+    } else if (e instanceof Error) {
+      errorMessage = e.toString();
+    }
+
+    console.log("Full error message on pull:", `${errorMessage}'`);
+
+    if (errorMessage == "Unknown Error. Try again later.") {
         console.log( "Unknown Error. Try again later. - deleting and recloning", addon.path );
 
         // Delete and reclone
