@@ -40,6 +40,14 @@ const convertFindKeyToPath = (key: string) => {
     return path
 }
 
+const getNameFromPath = (path: string) => {
+    // "/garrysmod/addons/niknaks"
+
+    // ["", "garrysmod", "addons", "niknaks"]
+    const spl = path.split("/");
+    return spl[spl.length - 1];
+}
+
 const getOwnerRepoFromURL = (url: string) => {
   // "https://github.com/cfc-servers/cfc_cl_http_whitelist.git"
   
@@ -93,18 +101,23 @@ const getTrackedAddons = async (wisp: WispInterface) => {
   const installedAddons: {[key: string]: InstalledAddon} = {};
   for (const [key, value] of Object.entries(addonSearch.files)) {
     const path = convertFindKeyToPath(key);
+    const name = getNameFromPath(path);
 
     // Getting the url from the config file
-    // "\turl = https://github.com/cfc-servers/cfc_cl_http_whitelist.git"
+    // "\turl = https://github.com/CFC-Servers/cfc_cl_http_whitelist.git"
     let url = value.lines[7]
 
-    // "https://github.com/cfc-servers/cfc_cl_http_whitelist.git"
+    // "https://github.com/CFC-Servers/cfc_cl_http_whitelist.git"
     url = url.split("= ")[1];
+
+    // "https://github.com/cfc-servers/cfc_cl_http_whitelist.git"
+    url = url.toLowerCase();
 
     const [owner, repo] = getOwnerRepoFromURL(url);
 
     const addon: InstalledAddon = {
       path: path,
+      name: name,
       url: url,
       owner: owner,
       repo: repo,
@@ -112,7 +125,7 @@ const getTrackedAddons = async (wisp: WispInterface) => {
       commit: "unknown"
     }
 
-    installedAddons[repo] = addon;
+    installedAddons[url] = addon;
   }
 
   await setGitInfo(wisp, installedAddons);
@@ -129,12 +142,18 @@ const getDesiredAddons = async (controlFile: string) => {
 
     const [owner, repo] = getOwnerRepoFromURL(url);
 
-    desiredAddons[repo] = {
+    const desired: DesiredAddon = {
       url: url,
       owner: owner,
       repo: repo,
       branch: addon.branch
     };
+
+    if (addon.name) {
+        desired.name = addon.name;
+    }
+
+    desiredAddons[url] = desired;
   }
 
   return desiredAddons;
@@ -148,12 +167,22 @@ const cloneAddons = async (wisp: WispInterface, desiredAddons: DesiredAddon[]) =
     const url = `${desiredAddon.url}.git`;
     const branch = desiredAddon.branch;
 
-    logger.info(`Cloning ${url} to /garrysmod/addons`);
+    const [_, name] = getOwnerRepoFromURL(url);
+
+    console.log(`Cloning ${url} to /garrysmod/addons`);
     try {
       const result: GitCloneResult = await wisp.socket.gitClone(url, "/garrysmod/addons", branch);
       const createdAddon: AddonCreateInfo = {
         addon: desiredAddon,
         isPrivate: result.isPrivate
+      }
+
+      // `name` comes straight from the YAML, meaning if it exists, its different than the base name and we need to move it
+      const desiredName = desiredAddon.name;
+
+      if (desiredName) {
+        logger.info(`New addon has a desired name. Renaming: ${name} -> ${desiredName}`);
+        await wisp.api.renameFile(`/garrysmod/addons/${name}`, `/garrysmod/addons/${desiredName}`);
       }
 
       successes.push(createdAddon);
@@ -190,6 +219,11 @@ interface AddonUpdate {
   isPrivate: boolean;
 }
 
+const errorsTriggeringReclone: {[key: string]: boolean} = {
+    "No merge base found": true,
+    "Unknown Error. Try again later.": true
+}
+
 const updateAddon = async (ghPAT: string, wisp: WispInterface, addon: InstalledAddon) => {
   const currentCommit = addon.commit;
 
@@ -206,13 +240,27 @@ const updateAddon = async (ghPAT: string, wisp: WispInterface, addon: InstalledA
 
     console.log("Full error message on pull:", `${errorMessage}'`);
 
-    if (errorMessage == "Unknown Error. Try again later.") {
-        console.log( "Unknown Error. Try again later. - deleting and recloning", addon.path );
+    const isPrimaryBranch = addon.branch == "main" || addon.branch == "master";
+    const canReclone = errorsTriggeringReclone[errorMessage];
 
-        // Delete and reclone
-        await wisp.api.deleteFiles([addon.path]);
-        await wisp.socket.gitClone(addon.url, "/garrysmod/addons", addon.branch);
-        pullResult = await wisp.socket.gitPull(addon.path);
+    if (canReclone) {
+        if (isPrimaryBranch) {
+            console.log( `'${errorMessage}' on primary branch pull. Ignoring in case it's temporary.`, addon.path, addon.branch );
+            throw(e);
+        } else {
+            console.log( `'${errorMessage}' on nonstandared branch pull - deleting and recloning`, addon.path );
+
+            // Delete and reclone
+            await wisp.api.deleteFiles([addon.path]);
+            await wisp.socket.gitClone(addon.url, "/garrysmod/addons", addon.branch);
+
+            if (addon.name !== addon.repo) {
+                console.log(`Recloned a broken repo that has a custom name: ${addon.url} wants to be at ${addon.name}`);
+                await wisp.api.renameFile(`/garrysmod/addons/${addon.repo}`, `/garrysmod/addons/${addon.name}`);
+            }
+
+            pullResult = await wisp.socket.gitPull(addon.path);
+        }
     } else {
         throw(e);
     }
@@ -250,28 +298,50 @@ async function manageAddons(wisp: any, serverName: string, ghPAT: string, alertW
     console.log("Control file provided - getting desired addons");
 
     const desiredAddons = await getDesiredAddons(controlFile);
-    for (const [name, desiredAddon] of Object.entries(desiredAddons)) {
-      const installedAddon = installedAddons[name];
+
+    for (const [url, desiredAddon] of Object.entries(desiredAddons)) {
+      // Installed URL contains .git, Desired do not
+      const installedURL = `${url}.git`;
+      const installedAddon = installedAddons[installedURL];
 
       // If we don't have it, get it
       if (!installedAddon) {
+        console.log(`Desired Addon does not appear in Installed list: ${installedURL}`);
         toClone.push(desiredAddon);
         continue;
       }
 
-      // Otherwise, we have to check if the branch is correct
+      const branchMatch = installedAddon.branch === desiredAddon.branch;
+
+      const desiredName = desiredAddon.name;
+      const installedName = installedAddon.name;
+      const nameMatch = desiredName ? desiredName == installedName : true;
+
+      // Otherwise, we have to check if the branch and dir name are correct
       // (This will trigger a deletion _and_ a clone)
-      if (installedAddon.branch === desiredAddon.branch) {
+      if (branchMatch && nameMatch) {
+        console.log("Branch and name match, marking for update:", installedAddon.path);
         toUpdate.push(installedAddon);
       } else {
-        logger.info(`Branch mismatch for ${name}: ${installedAddon.branch} != ${desiredAddon.branch}`);
+        if (!branchMatch) {
+            console.log(`Branch mismatch for ${name}: ${installedAddon.branch} != ${desiredAddon.branch}`);
+        }
+
+        if (!nameMatch) {
+            console.log(`Name mismatch for ${name}: ${installedAddon.branch} != ${desiredAddon.branch}`);
+        }
+
         toDelete.push(installedAddon);
         toClone.push(desiredAddon);
       }
     }
 
-    for (const [name, installedAddon] of Object.entries(installedAddons)) {
-      if (!(name in desiredAddons)) {
+    for (const [url, installedAddon] of Object.entries(installedAddons)) {
+      // Installed URL contains .git, Desired do not
+      const installedURL = url.replace(".git", "");
+
+      if (!(installedURL in desiredAddons)) {
+        console.log(`Installed addon is missing from desired list: ${installedURL} not in desiredAddons`);
         toDelete.push(installedAddon);
       }
     }

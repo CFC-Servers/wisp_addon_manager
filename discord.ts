@@ -13,7 +13,7 @@ const hiddenURL = "https://github.com/404";
 
 const getLinkForAddon = (addon: InstalledAddon | DesiredAddon) => {
   const url = `${addon.url.replace(".git", "")}/tree/${addon.branch}`;
-  return `[**${addon.repo}**](${url})`;
+  return `[**${addon.name}**](${url})`;
 };
 
 const generateUpdateEmbed = (addonUpdate: AddonUpdateInfo) => {
@@ -38,7 +38,7 @@ const generateUpdateEmbed = (addonUpdate: AddonUpdateInfo) => {
     return commit;
   });
 
-  const embedTitle = `🚀 Updates for: **\`${addon.repo}\`**`;
+  const embedTitle = `🚀 Updates for: **\`${addon.name}\`**`;
   const diffURL = updateInfo.url;
 
   const commitBody = commitList.map((commit: CommitDTO) => {
@@ -97,7 +97,7 @@ const generateDeleteEmbed = (addonUpdates: AddonDeleteInfo[]) => {
   const embedTitle = `🗑️ Removed`;
 
   const addonList = addonUpdates.map((change: AddonDeleteInfo) => {
-    return `- [**${change.addon.repo}**](${change.addon.url})`;
+    return `- [**${change.addon.name}**](${change.addon.url})`;
   }).join('\n');
 
   const embed = {
@@ -114,7 +114,7 @@ const generateAddedEmbed = (addonUpdates: AddonCreateInfo[]) => {
 
   const commitList = addonUpdates.map((change: AddonCreateInfo) => {
     const url = change.isPrivate ? hiddenURL : `${change.addon.url}/tree/${change.addon.branch}`;
-    const name = change.addon.repo;
+    const name = change.addon.name;
 
     return `- [**${name}**](${url})`;
   }).join('\n');

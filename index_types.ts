@@ -5,11 +5,12 @@ export interface DesiredAddon {
   owner: string
   repo: string
   branch: string
-  destination?: string
+  name?: string
 }
 
 export interface InstalledAddon {
   path: string;
+  name: string;
   url: string;
   owner: string;
   repo: string;
