@@ -46,7 +46,8 @@ const setGitInfo = async (wisp, addons) => {
         const dir = dirSpl[dirSpl.length - 1];
         dirToAddon[dir] = addon;
     }
-    const nonce = (Math.random() + 1).toString(36).substring(7);
+    const uuid = (Math.random() + 1).toString(36).substring(7);
+    const nonce = `nanny-${uuid}`;
     const command = `nanny ${nonce} gitinfo`;
     const response = await wisp.socket.sendCommandNonce(`${nonce}: `, command);
     // const buf = Buffer.from(response, "base64");
