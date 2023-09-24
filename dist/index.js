@@ -4,12 +4,8 @@ import { WispInterface } from "wispjs";
 import { generateUpdateWebhook, generateFailureWebhook } from "./discord.js";
 import { gitCommitDiff } from "./github.js";
 const logger = {
-    info: (msg) => {
-        console.log(msg);
-    },
-    error: (msg) => {
-        console.error(msg);
-    }
+    info: console.log,
+    error: console.error
 };
 const convertFindKeyToPath = (key) => {
     // "garrysmod/addons/niknaks/.git/config"
@@ -125,14 +121,15 @@ const cloneAddons = async (wisp, desiredAddons) => {
                 addon: desiredAddon,
                 isPrivate: result.isPrivate
             };
+            logger.info(`Cloned ${url} to /garrysmod/addons\n`);
             // `name` comes straight from the YAML, meaning if it exists, its different than the base name and we need to move it
             const desiredName = desiredAddon.name;
             if (desiredName) {
                 logger.info(`New addon has a desired name. Renaming: ${name} -> ${desiredName}`);
-                await wisp.api.renameFile(`/garrysmod/addons/${name}`, `/garrysmod/addons/${desiredName}`);
+                const renameResult = await wisp.api.renameFile(`/garrysmod/addons/${name}`, `/garrysmod/addons/${desiredName}`);
+                logger.info(`Rename status response: ${renameResult.status} - ${renameResult.statusText}`);
             }
             successes.push(createdAddon);
-            logger.info(`Cloned ${url} to /garrysmod/addons\n`);
         }
         catch (e) {
             let errorMessage = "Unknown Error";
@@ -282,7 +279,7 @@ async function manageAddons(wisp, serverName, ghPAT, alertWebhook, failureWebhoo
     // Deleted Addons
     if (toDelete.length > 0) {
         for (const addon of toDelete) {
-            logger.info(`Deleting ${addon.repo}`);
+            logger.info(`Deleting ${addon.path}`);
             try {
                 await wisp.api.deleteFiles([addon.path]);
                 const change = {
