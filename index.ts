@@ -324,11 +324,11 @@ async function manageAddons(wisp: any, serverName: string, ghPAT: string, alertW
         toUpdate.push(installedAddon);
       } else {
         if (!branchMatch) {
-            console.log(`Branch mismatch for ${name}: ${installedAddon.branch} != ${desiredAddon.branch}`);
+            console.log(`Branch mismatch for ${installedAddon.path}: ${installedAddon.branch} != ${desiredAddon.branch}`);
         }
 
         if (!nameMatch) {
-            console.log(`Name mismatch for ${name}: ${installedAddon.branch} != ${desiredAddon.branch}`);
+            console.log(`Name mismatch for ${installedAddon.path}: ${installedAddon.name} != ${desiredAddon.name}`);
         }
 
         toDelete.push(installedAddon);
