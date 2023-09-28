@@ -114,7 +114,7 @@ const generateAddedEmbed = (addonUpdates: AddonCreateInfo[]) => {
 
   const commitList = addonUpdates.map((change: AddonCreateInfo) => {
     const url = change.isPrivate ? hiddenURL : `${change.addon.url}/tree/${change.addon.branch}`;
-    const name = change.addon.name;
+    const name = change.addon.name || change.addon.repo;
 
     return `- [**${name}**](${url})`;
   }).join('\n');
