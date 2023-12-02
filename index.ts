@@ -1,17 +1,16 @@
-import YAML from "yaml";
-// import lzma from "lzma-native";
+import YAML from "yaml"
+// import lzma from "lzma-native"
 
-import { WispInterface } from "wispjs";
-import { generateUpdateWebhook, generateFailureWebhook } from "./discord.js";
-import { gitCommitDiff } from "./github.js";
+import { WispInterface } from "wispjs"
+import { generateUpdateWebhook, generateFailureWebhook } from "./discord.js"
+import { gitCommitDiff, getLatestCommitHashes } from "./github.js"
 
-import type { GitPullResult, GitCloneResult } from "wispjs";
-import type { CompareDTO } from "./github.js";
-import type { ChangeMap, FailureMap } from "./discord.js";
-import type { DesiredAddon, InstalledAddon }  from "./index_types.js";
-import type { AddonDeleteInfo, AddonCreateInfo, AddonUpdateInfo  } from "./index_types.js";
-import type { AddonDeleteFailure, AddonCreateFailure, AddonUpdateFailure } from "./index_types.js";
-import type { AddonGitInfo } from "./index_types.js";
+import type { CompareDTO } from "./github.js"
+import type { ChangeMap, FailureMap } from "./discord.js"
+import type { AddonRemoteGitInfoMap, AddonURLToAddonMap, DesiredAddon, InstalledAddon }  from "./index_types.js"
+import type { AddonDeleteInfo, AddonCreateInfo, AddonUpdateInfo  } from "./index_types.js"
+import type { AddonDeleteFailure, AddonCreateFailure, AddonUpdateFailure } from "./index_types.js"
+import type { AddonGitInfo } from "./index_types.js"
 
 const logger = {
   info: console.log,
@@ -22,16 +21,16 @@ const convertFindKeyToPath = (key: string) => {
     // "garrysmod/addons/niknaks/.git/config"
 
     // ["garrysmod", "addons", "niknaks", ".git", "config"]
-    const keySplit = key.split("/");
+    const keySplit = key.split("/")
 
     // ["garrysmod", "addons", "niknaks", ".git"]
-    keySplit.pop();
+    keySplit.pop()
 
     // ["garrysmod", "addons", "niknaks"]
-    keySplit.pop();
+    keySplit.pop()
 
     // "/garrysmod/addons/niknaks"
-    const path = "/" + keySplit.join("/");
+    const path = "/" + keySplit.join("/")
 
     return path
 }
@@ -40,77 +39,74 @@ const getNameFromPath = (path: string) => {
     // "/garrysmod/addons/niknaks"
 
     // ["", "garrysmod", "addons", "niknaks"]
-    const spl = path.split("/");
-    return spl[spl.length - 1];
+    const spl = path.split("/")
+
+    // "niknaks"
+    return spl[spl.length - 1]
 }
 
 const getOwnerRepoFromURL = (url: string) => {
   // "https://github.com/cfc-servers/cfc_cl_http_whitelist.git"
   
   // [ "https:", "", "github.com", "cfc-servers", "cfc_cl_http_whitelist.git" ]
-  const spl = url.split("/");
+  const spl = url.split("/")
 
-  const owner = spl[3];
+  // "cfc-servers"
+  const owner = spl[3]
 
   // "cfc_cl_http_whitelist.git"
   let repo = spl[4]
-  repo = repo.split(".git")[0];
 
-  return [owner, repo];
+  // "cfc_cl_http_whitelist"
+  repo = repo.split(".git")[0]
+
+  // [ "cfc-servers", "cfc_cl_http_whitelist" ]
+  return [owner, repo]
 }
 
-const setGitInfo = async(wisp: WispInterface, addons: {[key: string]: InstalledAddon}) => {
-  const dirToAddon: {[key: string]: InstalledAddon} = {};
+const setCurrentGitInfo = async(wisp: WispInterface, addons: AddonURLToAddonMap) => {
+  const dirToAddon: {[dir: string]: InstalledAddon} = {}
   for (const [_, addon] of Object.entries(addons)) {
-    const dirSpl = addon.path.split("/");
-    const dir = dirSpl[dirSpl.length - 1];
+    const dirSpl = addon.path.split("/")
+    const dir = dirSpl[dirSpl.length - 1]
 
-    dirToAddon[dir] = addon;
+    dirToAddon[dir] = addon
   }
 
-  const uuid = (Math.random() + 1).toString(36).substring(7);
-  const nonce = `nanny-${uuid}`;
-  const command = `nanny ${nonce} gitinfo`;
-  const response = await wisp.socket.sendCommandNonce(`${nonce}: `, command);
+  const uuid = (Math.random() + 1).toString(36).substring(7)
+  const nonce = `nanny-${uuid}`
+  const command = `nanny ${nonce} gitinfo`
+  const response = await wisp.socket.sendCommandNonce(`${nonce}: `, command)
 
-  // const buf = Buffer.from(response, "base64");
-  // console.log(buf);
-
-  // @ts-ignore
-  // const jsonBuf: Buffer = await lzma.decompress(buf);
-  // const json = jsonBuf.toString("utf8");
-
-  const json = response;
-
-  const gitInfo: AddonGitInfo[] = JSON.parse(json);
+  const gitInfo: AddonGitInfo[] = JSON.parse(response)
 
   gitInfo.forEach((gitInfo) => {
-    const addon = dirToAddon[gitInfo.addon];
-    addon.branch = gitInfo.branch;
-    addon.commit = gitInfo.commit;
-  });
+    const addon = dirToAddon[gitInfo.addon]
+    addon.branch = gitInfo.branch
+    addon.commit = gitInfo.commit
+  })
 }
 
 // TODO: Only track addons that are in the addons folder?
 const getTrackedAddons = async (wisp: WispInterface) => {
-  const addonSearch = await wisp.socket.filesearch(`remote "origin"`);
+  const addonSearch: { files: { [name: string]: { lines: string[] } } } = await wisp.socket.filesearch(`remote "origin"`)
 
-  const installedAddons: {[key: string]: InstalledAddon} = {};
+  const installedAddons: {[key: string]: InstalledAddon} = {}
   for (const [key, value] of Object.entries(addonSearch.files)) {
-    const path = convertFindKeyToPath(key);
-    const name = getNameFromPath(path);
+    const path = convertFindKeyToPath(key)
+    const name = getNameFromPath(path)
 
     // Getting the url from the config file
     // "\turl = https://github.com/CFC-Servers/cfc_cl_http_whitelist.git"
     let url = value.lines[7]
 
     // "https://github.com/CFC-Servers/cfc_cl_http_whitelist.git"
-    url = url.split("= ")[1];
+    url = url.split("= ")[1]
 
     // "https://github.com/cfc-servers/cfc_cl_http_whitelist.git"
-    url = url.toLowerCase();
+    url = url.toLowerCase()
 
-    const [owner, repo] = getOwnerRepoFromURL(url);
+    const [owner, repo] = getOwnerRepoFromURL(url)
 
     const addon: InstalledAddon = {
       path: path,
@@ -122,100 +118,105 @@ const getTrackedAddons = async (wisp: WispInterface) => {
       commit: "unknown"
     }
 
-    installedAddons[url] = addon;
+    installedAddons[url] = addon
   }
 
-  await setGitInfo(wisp, installedAddons);
+  // Sets addon.commit and addon.branch
+  await setCurrentGitInfo(wisp, installedAddons)
 
-  return installedAddons;
+  return installedAddons
 }
 
 const getDesiredAddons = async (controlFile: string) => {
-  const doc: any = YAML.parse(controlFile);
+  const doc: any = YAML.parse(controlFile)
 
-  const desiredAddons: {[key: string]: DesiredAddon} = {};
+  const desiredAddons: {[key: string]: DesiredAddon} = {}
   for (const addon of doc.addons) {
-    const url = addon.url.toLowerCase();
+    const url = addon.url.toLowerCase()
 
-    const [owner, repo] = getOwnerRepoFromURL(url);
+    const [owner, repo] = getOwnerRepoFromURL(url)
 
     const desired: DesiredAddon = {
       url: url,
       owner: owner,
       repo: repo,
       branch: addon.branch
-    };
-
-    if (addon.name) {
-        desired.name = addon.name;
     }
 
-    desiredAddons[url] = desired;
+    if (addon.name) {
+        desired.name = addon.name
+    }
+
+    desiredAddons[url] = desired
   }
 
-  return desiredAddons;
+  return desiredAddons
 }
 
 const cloneAddons = async (wisp: WispInterface, desiredAddons: DesiredAddon[]) => {
-  const successes: AddonCreateInfo[] = [];
-  const failures: AddonCreateFailure[] = [];
+  const successes: AddonCreateInfo[] = []
+  const failures: AddonCreateFailure[] = []
 
-  for (const desiredAddon of desiredAddons) {
-    const url = `${desiredAddon.url}.git`;
-    const branch = desiredAddon.branch;
+  const addonClones = desiredAddons.map((addon) => {
+    const url = `${addon.url}.git`
+    const branch = addon.branch
 
-    const [_, name] = getOwnerRepoFromURL(url);
+    console.log(`Cloning ${url} to /garrysmod/addons`)
+    return wisp.socket.gitClone(url, "/garrysmod/addons", branch)
+  });
 
-    console.log(`Cloning ${url} to /garrysmod/addons`);
-    try {
-      const result: GitCloneResult = await wisp.socket.gitClone(url, "/garrysmod/addons", branch);
+  const results = await Promise.allSettled(addonClones)
+
+  for (const [index, result] of results.entries()) {
+    const desiredAddon = desiredAddons[index]
+    const url = desiredAddon.url
+
+    if (result.status == "fulfilled") {
+      const value = result.value
+      const isPrivate = value.isPrivate
+
       const createdAddon: AddonCreateInfo = {
         addon: desiredAddon,
-        isPrivate: result.isPrivate
+        isPrivate: isPrivate
       }
-      logger.info(`Cloned ${url} to /garrysmod/addons\n`);
+      logger.info(`Cloned ${url} to /garrysmod/addons\n`)
 
       // `name` comes straight from the YAML, meaning if it exists, its different than the base name and we need to move it
-      const desiredName = desiredAddon.name;
+      const [_, name] = getOwnerRepoFromURL(url)
+      const desiredName = desiredAddon.name
 
       if (desiredName) {
-        logger.info(`New addon has a desired name. Renaming: ${name} -> ${desiredName}`);
-        const renameResult = await wisp.api.renameFile(`/garrysmod/addons/${name}`, `/garrysmod/addons/${desiredName}`);
+        logger.info(`New addon has a desired name. Renaming: ${name} -> ${desiredName}`)
+        const renameResult = await wisp.api.renameFile(`/garrysmod/addons/${name}`, `/garrysmod/addons/${desiredName}`)
 
-        logger.info(`Rename status response: ${renameResult.status} - ${renameResult.statusText}`);
+        logger.info(`Rename status response: ${renameResult.status} - ${renameResult.statusText}`)
       }
 
-      successes.push(createdAddon);
-    } catch (e) {
-      let errorMessage = "Unknown Error";
-
-      if (typeof e === "string") {
-        errorMessage = e;
-      } else if (e instanceof Error) {
-        errorMessage = e.toString();
-      }
+      successes.push(createdAddon)
+    } else {
+      const reason = result.reason
 
       const failedUpdate: AddonCreateFailure = {
         addon: desiredAddon,
-        error: errorMessage
+        error: reason
       }
 
-      failures.push(failedUpdate);
-      logger.error(`Failed to clone ${url}`);
-      logger.error(e);
+      failures.push(failedUpdate)
+      logger.error(`Failed to clone ${url}`)
+      logger.error(reason)
     }
   }
 
   return {
     failures: failures,
     successes: successes
-  };
+  }
 }
 
 interface AddonUpdate {
-  addon: InstalledAddon;
-  change?: CompareDTO;
-  isPrivate: boolean;
+  addon: InstalledAddon
+  change?: CompareDTO
+  isPrivate: boolean
 }
 
 const errorsTriggeringReclone: {[key: string]: boolean} = {
@@ -223,131 +224,234 @@ const errorsTriggeringReclone: {[key: string]: boolean} = {
     "Unknown Error. Try again later.": true
 }
 
-const updateAddon = async (ghPAT: string, wisp: WispInterface, addon: InstalledAddon) => {
-  const currentCommit = addon.commit;
-
-  let pullResult: GitPullResult;
+const updateAddon = async (wisp: WispInterface, addon: InstalledAddon, isPrivate: boolean) => {
+  let pullResult
   try {
-    pullResult = await wisp.socket.gitPull(addon.path);
+    pullResult = await wisp.socket.gitPull(addon.path, isPrivate)
+    console.log("Got pull result:", pullResult)
   } catch (e: any) {
-    let errorMessage = "Unknown Error";
+    let errorMessage = "Unknown Error"
     if (typeof e === "string") {
-      errorMessage = e;
+      errorMessage = e
     } else if (e instanceof Error) {
-      errorMessage = e.toString();
+      errorMessage = e.toString()
     }
 
-    console.log("Full error message on pull:", `${errorMessage}'`);
+    console.log("Full error message on pull:", `${errorMessage}'`)
 
-    const isPrimaryBranch = addon.branch == "main" || addon.branch == "master";
-    const canReclone = errorsTriggeringReclone[errorMessage];
+    const isPrimaryBranch = addon.branch == "main" || addon.branch == "master"
+    const canReclone = errorsTriggeringReclone[errorMessage]
 
     if (canReclone) {
         if (isPrimaryBranch) {
-            console.log( `'${errorMessage}' on primary branch pull. Ignoring in case it's temporary.`, addon.path, addon.branch );
-            throw(e);
+            console.log( `'${errorMessage}' on primary branch pull. Ignoring in case it's temporary.`, addon.path, addon.branch )
+            throw(e)
         } else {
-            console.log( `'${errorMessage}' on nonstandared branch pull - deleting and recloning`, addon.path );
+            console.log( `'${errorMessage}' on nonstandared branch pull - deleting and recloning`, addon.path )
 
             // Delete and reclone
-            await wisp.api.deleteFiles([addon.path]);
-            await wisp.socket.gitClone(addon.url, "/garrysmod/addons", addon.branch);
+            await wisp.api.deleteFiles([addon.path])
+            await wisp.socket.gitClone(addon.url, "/garrysmod/addons", addon.branch)
 
             if (addon.name !== addon.repo) {
-                console.log(`Recloned a broken repo that has a custom name: ${addon.url} wants to be at ${addon.name}`);
-                await wisp.api.renameFile(`/garrysmod/addons/${addon.repo}`, `/garrysmod/addons/${addon.name}`);
+                console.log(`Recloned a broken repo that has a custom name: ${addon.url} wants to be at ${addon.name}`)
+                await wisp.api.renameFile(`/garrysmod/addons/${addon.repo}`, `/garrysmod/addons/${addon.name}`)
             }
 
-            pullResult = await wisp.socket.gitPull(addon.path);
+            pullResult = await wisp.socket.gitPull(addon.path)
         }
     } else {
-        throw(e);
+        throw(e)
     }
   }
-
-  const newCommit = pullResult.output;
-  const isPrivate = pullResult.isPrivate;
 
   const addonUpdate: AddonUpdate = {
     addon: addon,
-    isPrivate: isPrivate
+    isPrivate: pullResult.isPrivate
   }
 
-  if (currentCommit !== newCommit) {
-    const change = await gitCommitDiff(ghPAT, addon.owner, addon.repo, currentCommit, newCommit);
-    addonUpdate.change = change;
+  return { update: addonUpdate, newCommit: pullResult.output }
+}
 
-    logger.info(`Changes detected for ${addon.repo}`);
-  } else {
-    logger.info(`No changes for ${addon.repo}`);
+const processControlFile = async (controlFile: string, toClone: DesiredAddon[], toUpdate: InstalledAddon[], toDelete: InstalledAddon[], installedAddons: AddonURLToAddonMap) => {
+  const desiredAddons = await getDesiredAddons(controlFile)
+  
+  for (const [url, desiredAddon] of Object.entries(desiredAddons)) {
+    // Installed URL contains .git, Desired do not
+    const installedURL = `${url}.git`
+    const installedAddon = installedAddons[installedURL]
+  
+    // If we don't have it, get it
+    if (!installedAddon) {
+      console.log(`Desired Addon does not appear in Installed list: ${installedURL}`)
+      toClone.push(desiredAddon)
+      continue
+    }
+  
+    const branchMatch = installedAddon.branch === desiredAddon.branch
+  
+    const desiredName = desiredAddon.name
+    const installedName = installedAddon.name
+    const nameMatch = desiredName ? desiredName == installedName : true
+  
+    // Otherwise, we have to check if the branch and dir name are correct
+    // (This will trigger a deletion _and_ a clone)
+    if (branchMatch && nameMatch) {
+      console.log("Branch and name match, marking for update:", installedAddon.path)
+      toUpdate.push(installedAddon)
+    } else {
+      if (!branchMatch) {
+          console.log(`Branch mismatch for ${installedAddon.path}: ${installedAddon.branch} != ${desiredAddon.branch}`)
+      }
+  
+      if (!nameMatch) {
+          console.log(`Name mismatch for ${installedAddon.path}: ${installedAddon.name} != ${desiredAddon.name}`)
+      }
+  
+      toDelete.push(installedAddon)
+      toClone.push(desiredAddon)
+    }
+  }
+  
+  for (const [url, installedAddon] of Object.entries(installedAddons)) {
+    // Installed URL contains .git, Desired do not
+    const installedURL = url.replace(".git", "")
+  
+    if (!(installedURL in desiredAddons)) {
+      console.log(`Installed addon is missing from desired list: ${installedURL} not in desiredAddons`)
+      toDelete.push(installedAddon)
+    }
+  }
+}
+
+const handleDeleteQueue = async (wisp: WispInterface, toDelete: InstalledAddon[], allChanges: ChangeMap, allFailures: FailureMap) => {
+  for (const addon of toDelete) {
+    logger.info(`Deleting ${addon.path}`)
+
+    try {
+      await wisp.api.deleteFiles([addon.path])
+
+      const change: AddonDeleteInfo = {
+        addon: addon,
+      }
+
+      allChanges.delete.push(change)
+    } catch (e) {
+      let errorMessage = "Unknown Error"
+
+      if (typeof e === "string") {
+        errorMessage = e
+      } else if (e instanceof Error) {
+        errorMessage = e.toString()
+      }
+
+      const failure: AddonDeleteFailure = {
+        addon: addon,
+        error: errorMessage
+      }
+
+      allFailures.delete.push(failure)
+      logger.error(`Failed to delete ${addon.repo}`)
+      logger.error(e)
+    }
+  }
+}
+
+const handleCloneQueue = async (wisp: WispInterface, toClone: DesiredAddon[], allChanges: ChangeMap, allFailures: FailureMap) => {
+  const cloneResult = await cloneAddons(wisp, toClone)
+  const failures = cloneResult.failures
+  const successes = cloneResult.successes
+
+  if (failures && failures.length > 0) {
+    allFailures.create = [...allFailures.create, ...failures]
   }
 
-  return addonUpdate;
+  if (successes && successes.length > 0) {
+    for (const created of successes) {
+      const change: AddonCreateInfo = {
+        addon: created.addon,
+        isPrivate: created.isPrivate
+      }
+
+      allChanges.create.push(change)
+    }
+  }
+}
+
+const handleUpdateQueue = async(wisp: WispInterface, ghPAT: string, toUpdate: InstalledAddon[], allChanges: ChangeMap, allFailures: FailureMap, remoteGitInfo: AddonRemoteGitInfoMap) => {
+  const addonUpdates = toUpdate.map((addon) => updateAddon(wisp, addon, remoteGitInfo[addon.url].isPrivate))
+  const results = await Promise.allSettled(addonUpdates)
+  console.log("Handled all updates in the queue")
+
+  for (const [index, result] of results.entries()) {
+      if (result.status == "fulfilled") {
+          const struct = result.value
+          const update = struct.update
+          const addon = update.addon
+          const currentCommit = addon.commit
+          const newCommit = struct.newCommit
+
+          let change
+
+          if (currentCommit !== newCommit) {
+            try {
+                logger.info(`Changes detected for ${addon.repo} - getting diff`)
+                change = await gitCommitDiff(ghPAT, addon.owner, addon.repo, currentCommit, newCommit)
+            } catch(e: any) {
+                logger.error(`Failed to retrieve git diff: ${e}`)
+            }
+          } else {
+            logger.info(`No changes for ${addon.repo}`)
+          }
+
+          const changeInfo: AddonUpdateInfo = {
+            addon: update.addon,
+            updateInfo: change,
+            isPrivate: update.isPrivate
+          }
+
+          allChanges.update.push(changeInfo)
+      } else {
+          const addon = toUpdate[index]
+          const errorMessage = result.reason
+
+          const failure: AddonUpdateFailure = {
+            addon: addon,
+            error: errorMessage
+          }
+
+          allFailures.update.push(failure)
+      }
+  }
+}
+
+// Filters the given update queue to only include addons that /need/ an update
+// (If its commit [as described by the gmod server] does not match the latest commit fetched from Git)
+const filterUpdateQueue = (toUpdate: InstalledAddon[], remoteGitInfo: AddonRemoteGitInfoMap) => {
+  return toUpdate.filter((addon: InstalledAddon) => {
+    const remoteInfo = remoteGitInfo[addon.url]
+    return addon.commit != remoteInfo.latestCommit
+  })
 }
 
 async function manageAddons(wisp: any, serverName: string, ghPAT: string, alertWebhook: string, failureWebhook: string, controlFile?: string) {
-  console.log("Connected to Wisp - getting tracked addons");
-  const installedAddons = await getTrackedAddons(wisp);
+  console.log("Connected to Wisp - getting tracked addons")
+  const installedAddons = await getTrackedAddons(wisp)
 
-  const toClone = [];
-  const toUpdate = [];
-  const toDelete = [];
+  console.log("Received addons. Getting Remote git info")
+  const remoteGitInfo: AddonRemoteGitInfoMap = await getLatestCommitHashes(ghPAT, installedAddons)
+
+  const toClone: DesiredAddon[] = []
+  const toUpdate: InstalledAddon[] = []
+  const toDelete: InstalledAddon[] = []
 
   if (controlFile) {
-    console.log("Control file provided - getting desired addons");
-
-    const desiredAddons = await getDesiredAddons(controlFile);
-
-    for (const [url, desiredAddon] of Object.entries(desiredAddons)) {
-      // Installed URL contains .git, Desired do not
-      const installedURL = `${url}.git`;
-      const installedAddon = installedAddons[installedURL];
-
-      // If we don't have it, get it
-      if (!installedAddon) {
-        console.log(`Desired Addon does not appear in Installed list: ${installedURL}`);
-        toClone.push(desiredAddon);
-        continue;
-      }
-
-      const branchMatch = installedAddon.branch === desiredAddon.branch;
-
-      const desiredName = desiredAddon.name;
-      const installedName = installedAddon.name;
-      const nameMatch = desiredName ? desiredName == installedName : true;
-
-      // Otherwise, we have to check if the branch and dir name are correct
-      // (This will trigger a deletion _and_ a clone)
-      if (branchMatch && nameMatch) {
-        console.log("Branch and name match, marking for update:", installedAddon.path);
-        toUpdate.push(installedAddon);
-      } else {
-        if (!branchMatch) {
-            console.log(`Branch mismatch for ${installedAddon.path}: ${installedAddon.branch} != ${desiredAddon.branch}`);
-        }
-
-        if (!nameMatch) {
-            console.log(`Name mismatch for ${installedAddon.path}: ${installedAddon.name} != ${desiredAddon.name}`);
-        }
-
-        toDelete.push(installedAddon);
-        toClone.push(desiredAddon);
-      }
-    }
-
-    for (const [url, installedAddon] of Object.entries(installedAddons)) {
-      // Installed URL contains .git, Desired do not
-      const installedURL = url.replace(".git", "");
-
-      if (!(installedURL in desiredAddons)) {
-        console.log(`Installed addon is missing from desired list: ${installedURL} not in desiredAddons`);
-        toDelete.push(installedAddon);
-      }
-    }
+    console.log("Control file provided - getting desired addons")
+    await processControlFile(controlFile, toClone, toUpdate, toDelete, installedAddons)
   } else {
-    console.log("No control file provided - updating all existing addons");
+    console.log("No control file provided - updating all existing addons")
     for (const [_, installedAddon] of Object.entries(installedAddons)) {
-      toUpdate.push(installedAddon);
+      toUpdate.push(installedAddon)
     }
   }
 
@@ -355,120 +459,44 @@ async function manageAddons(wisp: any, serverName: string, ghPAT: string, alertW
     create: [],
     update: [],
     delete: []
-  };
+  }
 
   const allChanges: ChangeMap = {
     create: [],
     update: [],
     delete: []
-  };
+  }
 
   // Deleted Addons
   if (toDelete.length > 0) {
-    for (const addon of toDelete) {
-      logger.info(`Deleting ${addon.path}`);
-
-      try {
-        await wisp.api.deleteFiles([addon.path]);
-
-        const change: AddonDeleteInfo = {
-          addon: addon,
-        };
-
-        allChanges.delete.push(change);
-      } catch (e) {
-        let errorMessage = "Unknown Error";
-
-        if (typeof e === "string") {
-          errorMessage = e;
-        } else if (e instanceof Error) {
-          errorMessage = e.toString();
-        }
-
-        const failure: AddonDeleteFailure = {
-          addon: addon,
-          error: errorMessage
-        };
-
-        allFailures.delete.push(failure);
-        logger.error(`Failed to delete ${addon.repo}`);
-        logger.error(e);
-      }
-    }
+    await handleDeleteQueue(wisp, toDelete, allChanges, allFailures)
   } else {
-    logger.info("No addons to delete");
+    logger.info("No addons to delete")
   }
 
   // New Addons
   if (toClone.length > 0) {
-    const cloneResult = await cloneAddons(wisp, toClone);
-    const failures = cloneResult.failures;
-    const successes = cloneResult.successes;
-
-    if (failures && failures.length > 0) {
-      allFailures.create = [...allFailures.create, ...failures];
-    }
-
-    if (successes && successes.length > 0) {
-      for (const created of successes) {
-        const change: AddonCreateInfo = {
-          addon: created.addon,
-          isPrivate: created.isPrivate
-        };
-
-        allChanges.create.push(change);
-      }
-    }
+    await handleCloneQueue(wisp, toClone, allChanges, allFailures)
   } else {
-    logger.info("No addons to clone");
+    logger.info("No addons to clone")
   }
 
   // Updated Addons
   if (toUpdate.length > 0) {
-    for (const addon of toUpdate) {
-      try {
-        const update = await updateAddon(ghPAT, wisp, addon);
-
-        // Ignore it if it had no changes
-        if (!update.change) {
-          continue;
-        }
-
-        const changeInfo: AddonUpdateInfo = {
-          addon: update.addon,
-          updateInfo: update.change,
-          isPrivate: update.isPrivate
-        };
-
-        allChanges.update.push(changeInfo);
-      } catch (e) {
-        let errorMessage = "Unknown Error";
-        if (typeof e === "string") {
-          errorMessage = e;
-        } else if (e instanceof Error) {
-          errorMessage = e.toString();
-        }
-
-        const failure: AddonUpdateFailure = {
-          addon: addon,
-          error: errorMessage
-        };
-
-        allFailures.update.push(failure);
-      }
-    }
+    const filtered = filterUpdateQueue(toUpdate, remoteGitInfo)
+    await handleUpdateQueue(wisp, ghPAT, filtered, allChanges, allFailures, remoteGitInfo)
   } else {
-    logger.info("No addons to update");
+    logger.info("No addons to update")
   }
 
-  logger.info("Failures:");
-  logger.info(JSON.stringify(allFailures, null, 2));
-  logger.info("\n");
+  logger.info("Failures:")
+  logger.info(JSON.stringify(allFailures, null, 2))
+  logger.info("\n")
 
-  logger.info("Finished");
+  logger.info("Finished")
 
-  await generateUpdateWebhook(allChanges, alertWebhook, serverName);
-  await generateFailureWebhook(allFailures, failureWebhook, serverName);
+  await generateUpdateWebhook(allChanges, alertWebhook, serverName)
+  await generateFailureWebhook(allFailures, failureWebhook, serverName)
 }
 
 export type ManageAddonsConfig = {
@@ -487,17 +515,17 @@ export async function ManageAddons(config: ManageAddonsConfig) {
     domain, uuid, serverName,
     token, ghPAT, alertWebhook,
     failureWebhook, controlFile
-  } = config;
+  } = config
 
-  const wisp = new WispInterface(domain, uuid, token);
+  const wisp = new WispInterface(domain, uuid, token)
 
   try {
-    await wisp.connect(ghPAT);
-    await manageAddons(wisp, serverName, ghPAT, alertWebhook, failureWebhook, controlFile);
-    await wisp.disconnect();
+    await wisp.connect(ghPAT)
+    await manageAddons(wisp, serverName, ghPAT, alertWebhook, failureWebhook, controlFile)
+    await wisp.disconnect()
   } catch (e) {
-    logger.error(e);
-    await wisp.disconnect();
-    throw e;
+    logger.error(e)
+    await wisp.disconnect()
+    throw e
   }
 }

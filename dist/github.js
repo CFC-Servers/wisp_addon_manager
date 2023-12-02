@@ -17,17 +17,17 @@ export const getGithubFile = async (ghPAT, owner, repo, path) => {
     return data;
 };
 export const gitCommitDiff = async (ghPAT, owner, repo, oldSHA, newSHA) => {
-    const octokit = new Octokit({
-        auth: ghPAT
-    });
+    const octokit = new Octokit({ auth: ghPAT });
     // get first 6 of each sha
     oldSHA = oldSHA.substring(0, 6);
     newSHA = newSHA.substring(0, 6);
-    console.log(`Getting diff between ${oldSHA} and ${newSHA} from ${repo} owned by ${owner}`);
-    const content = await octokit.request('GET /repos/{owner}/{repo}/compare/{basehead}', {
+    const basehead = `${oldSHA}...${newSHA}`;
+    const path = `/repos/${owner}/${repo}/compare/${basehead}`;
+    console.log(`Getting diff between ${oldSHA} and ${newSHA} from ${repo} owned by ${owner}. Path: ${path}`);
+    const content = await octokit.request(`GET ${path}`, {
         owner: owner,
         repo: repo,
-        basehead: `${oldSHA}...${newSHA}`,
+        basehead: basehead,
     });
     const compareDTO = {
         url: content.data.html_url,
@@ -50,4 +50,42 @@ export const gitCommitDiff = async (ghPAT, owner, repo, oldSHA, newSHA) => {
         compareDTO.commits.push(dto);
     }
     return compareDTO;
+};
+export const getLatestCommitHashes = async (ghPAT, addons) => {
+    const octokit = new Octokit({ auth: ghPAT });
+    const addonsList = Object.values(addons);
+    let query = `query {`;
+    addonsList.forEach((addon, index) => {
+        query += `
+      repo${index}: repository(owner: "${addon.owner}", name: "${addon.repo}") {
+        isPrivate
+        ref(qualifiedName: "${addon.branch}") {
+          target {
+            ... on Commit {
+              oid
+            }
+          }
+        }
+      }
+    `;
+    });
+    query += `}`;
+    try {
+        const result = {};
+        const response = await octokit.graphql(query);
+        for (const [key, item] of Object.entries(response)) {
+            const addonIndex = parseInt(key.substring(4));
+            const addon = addonsList[addonIndex];
+            const info = {
+                latestCommit: item.ref.target.oid,
+                isPrivate: item.isPrivate
+            };
+            result[addon.url] = info;
+        }
+        return result;
+    }
+    catch (error) {
+        console.error('Error fetching commit hashes:', error);
+        throw error;
+    }
 };

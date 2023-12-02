@@ -23,7 +23,7 @@
     "@octokit/rest": "^20.0.1",
     "socket.io-client": "^4.7.2",
     "typescript": "^5.1.6",
-    "wispjs": "github:CFC-Servers/wispjs",
+    "wispjs": "file:wispjs-1.1.1.tgz",
     "yaml": "^2.3.2"
   },
   "devDependencies": {

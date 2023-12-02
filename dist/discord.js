@@ -81,7 +81,7 @@ const generateAddedEmbed = (addonUpdates) => {
     const embedTitle = `✨ New Addons`;
     const commitList = addonUpdates.map((change) => {
         const url = change.isPrivate ? hiddenURL : `${change.addon.url}/tree/${change.addon.branch}`;
-        const name = change.addon.name;
+        const name = change.addon.name || change.addon.repo;
         return `- [**${name}**](${url})`;
     }).join('\n');
     const embed = {

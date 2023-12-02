@@ -1,4 +1,5 @@
 import { Octokit } from "@octokit/rest";
+import type { AddonRemoteGitInfo, AddonURLToAddonMap, AddonRemoteGitInfoMap }  from "./index_types.js";
 
 export const getGithubFile = async (ghPAT: string, owner: string, repo: string, path: string) => {
   const octokit = new Octokit({ 
@@ -30,13 +31,6 @@ interface MinimalCommit {
 interface Tree {
   sha: string;
   url: string;
-}
-
-interface Verification {
-  verified: boolean;
-  reason: "valid" | "unsigned";
-  signature: string | null;
-  payload: string | null;
 }
 
 interface CommitAuthor {
@@ -116,10 +110,6 @@ interface CompareData {
   files: File[];
 }
 
-interface CompareResponse {
-  data: CompareData;
-}
-
 interface AuthorDTO {
   username: string;
   avatar: string;
@@ -141,20 +131,22 @@ export interface CompareDTO {
 }
 
 export const gitCommitDiff = async (ghPAT: string, owner: string, repo: string, oldSHA: string, newSHA: string) => {
-  const octokit = new Octokit({ 
-    auth: ghPAT
-  });
+  const octokit = new Octokit({ auth: ghPAT })
 
   // get first 6 of each sha
-  oldSHA = oldSHA.substring(0, 6);
-  newSHA = newSHA.substring(0, 6);
+  oldSHA = oldSHA.substring(0, 6)
+  newSHA = newSHA.substring(0, 6)
 
-  console.log(`Getting diff between ${oldSHA} and ${newSHA} from ${repo} owned by ${owner}`);
-  const content = await octokit.request('GET /repos/{owner}/{repo}/compare/{basehead}', {
+  const basehead = `${oldSHA}...${newSHA}`
+  const path = `/repos/${owner}/${repo}/compare/${basehead}`
+  console.log(`Getting diff between ${oldSHA} and ${newSHA} from ${repo} owned by ${owner}. Path: ${path}`)
+
+  const content = await octokit.request(`GET ${path}`, {
     owner: owner,
     repo: repo,
-    basehead: `${oldSHA}...${newSHA}`,
+    basehead: basehead,
   })
+  console.log(`Got response from Github for ${owner}/${repo}`)
 
   const compareDTO: CompareDTO = {
     url: content.data.html_url,
@@ -182,3 +174,59 @@ export const gitCommitDiff = async (ghPAT: string, owner: string, repo: string, 
 
   return compareDTO;
 }
+
+interface RepoCommitResponseItem {
+  ref: {
+    target: {
+      oid: string;
+    }
+  }
+  isPrivate: boolean;
+}
+
+export const getLatestCommitHashes = async (ghPAT: string, addons: AddonURLToAddonMap) => {
+  const octokit = new Octokit({ auth: ghPAT });
+  const addonsList = Object.values(addons);
+
+  let query = `query {`;
+
+  addonsList.forEach((addon, index) => {
+    query += `
+      repo${index}: repository(owner: "${addon.owner}", name: "${addon.repo}") {
+        isPrivate
+        ref(qualifiedName: "${addon.branch}") {
+          target {
+            ... on Commit {
+              oid
+            }
+          }
+        }
+      }
+    `;
+  });
+
+  query += `}`;
+
+  try {
+    const result: AddonRemoteGitInfoMap = {};
+    const response: {[index: string]: RepoCommitResponseItem} = await octokit.graphql(query);
+
+    for (const [key, item] of Object.entries(response)) {
+      const addonIndex = parseInt(key.substring(4));
+      const addon = addonsList[addonIndex];
+
+      const info: AddonRemoteGitInfo = {
+        latestCommit: item.ref.target.oid,
+        isPrivate: item.isPrivate
+      }
+
+      result[addon.url] = info;
+    }
+
+    return result;
+  } catch (error) {
+    console.error('Error fetching commit hashes:', error);
+    throw error;
+  }
+}
+
