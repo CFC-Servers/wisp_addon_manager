@@ -9,6 +9,8 @@ A Javascript module that keeps a Wisp GMod server's addons in-line with a master
 
 You can import this Module into your own JS project, or run it as-is with Docker.
 
+You can also use the [GitHub Action](https://github.com/CFC-Servers/wisp_addon_manager_action) to run it on an interval, or more easily use the Control File feature.
+
 ## Using the JS Module
 
 ### Installation
