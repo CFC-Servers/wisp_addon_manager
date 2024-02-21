@@ -21,7 +21,7 @@ const generateUpdateEmbed = (addonUpdate: AddonUpdateInfo) => {
   const maxMessageLength = 50;
 
   if (isPrivate && updateInfo) {
-    updateInfo.url = hiddenURL;
+    updateInfo.url = "https://github.com/404";
   }
 
   const embedTitle = `🚀 Updates for: **\`${addon.name}\`**`;
