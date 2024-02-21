@@ -551,10 +551,14 @@ export async function ManageAddons(config: ManageAddonsConfig) {
   try {
     await wisp.connect(ghPAT)
     await manageAddons(wisp, serverName, ghPAT, alertWebhook, failureWebhook, controlFile)
+    console.log("manageAddons done, disconnecting from Wisp...")
     await wisp.disconnect()
+    console.log("Disconnected from Wisp - done!")
   } catch (e) {
     logger.error(e)
+    console.log("manageAddons errored, disconnecting from Wisp...")
     await wisp.disconnect()
+    console.log("Disconnected from Wisp - done!")
     throw e
   }
 }
