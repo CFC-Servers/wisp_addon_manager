@@ -9,7 +9,7 @@ const EMBED_COLORS = {
   create: 0x32CD32,
 };
 
-const hiddenURL = "https://github.com/404";
+const hiddenURL = "http://__";
 
 const getLinkForAddon = (addon: InstalledAddon | DesiredAddon) => {
   const url = `${addon.url.replace(".git", "")}/tree/${addon.branch}`;
@@ -20,15 +20,19 @@ const generateUpdateEmbed = (addonUpdate: AddonUpdateInfo) => {
   const { addon, updateInfo, isPrivate } = addonUpdate;
   const maxMessageLength = 50;
 
-  if (isPrivate) {
+  if (isPrivate && updateInfo) {
     updateInfo.url = hiddenURL;
   }
 
-  const commitList: CommitDTO[] = updateInfo.commits.map((commit: CommitDTO) => {
+  const embedTitle = `🚀 Updates for: **\`${addon.name}\`**`;
+  const diffURL = updateInfo?.url;
+
+  const commits = updateInfo?.commits || []
+  const commitList: CommitDTO[] = commits.map((commit: CommitDTO) => {
     if (isPrivate) {
       commit.message = commit.message.replace(/[^ ]/g, "❚");
 
-      commit.author.username = "unknown"
+      commit.author.username = "?"
       commit.author.url = hiddenURL;
 
       commit.url = hiddenURL
@@ -37,9 +41,6 @@ const generateUpdateEmbed = (addonUpdate: AddonUpdateInfo) => {
 
     return commit;
   });
-
-  const embedTitle = `🚀 Updates for: **\`${addon.name}\`**`;
-  const diffURL = updateInfo.url;
 
   const commitBody = commitList.map((commit: CommitDTO) => {
     let message = commit.message;

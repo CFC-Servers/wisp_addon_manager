@@ -3,15 +3,16 @@ FROM node:20.5
 WORKDIR /app
 
 COPY package.json package.json
+COPY *.tgz .
 
 RUN npm i --force && npm install typescript -g 
-RUN npm update wispjs
+RUN npm update @cfc-servers/wispjs
 
 COPY tsconfig.json tsconfig.json
 COPY *.ts ./
 
 RUN tsc
 
-RUN ls -alh /app/node_modules/wispjs/dist
+RUN ls -alh /app/node_modules/
 
 CMD [ "node", "dist/docker.js" ]

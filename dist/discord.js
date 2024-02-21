@@ -3,7 +3,7 @@ const EMBED_COLORS = {
     delete: 0xFF4500,
     create: 0x32CD32,
 };
-const hiddenURL = "https://github.com/404";
+const hiddenURL = "http://__";
 const getLinkForAddon = (addon) => {
     const url = `${addon.url.replace(".git", "")}/tree/${addon.branch}`;
     return `[**${addon.name}**](${url})`;
@@ -11,21 +11,22 @@ const getLinkForAddon = (addon) => {
 const generateUpdateEmbed = (addonUpdate) => {
     const { addon, updateInfo, isPrivate } = addonUpdate;
     const maxMessageLength = 50;
-    if (isPrivate) {
+    if (isPrivate && updateInfo) {
         updateInfo.url = hiddenURL;
     }
-    const commitList = updateInfo.commits.map((commit) => {
+    const embedTitle = `🚀 Updates for: **\`${addon.name}\`**`;
+    const diffURL = updateInfo?.url;
+    const commits = updateInfo?.commits || [];
+    const commitList = commits.map((commit) => {
         if (isPrivate) {
             commit.message = commit.message.replace(/[^ ]/g, "❚");
-            commit.author.username = "unknown";
+            commit.author.username = "?";
             commit.author.url = hiddenURL;
             commit.url = hiddenURL;
             commit.sha = commit.sha.replace(/[^ ]/g, "❚");
         }
         return commit;
     });
-    const embedTitle = `🚀 Updates for: **\`${addon.name}\`**`;
-    const diffURL = updateInfo.url;
     const commitBody = commitList.map((commit) => {
         let message = commit.message;
         if (message.length > maxMessageLength) {
@@ -81,7 +82,7 @@ const generateAddedEmbed = (addonUpdates) => {
     const embedTitle = `✨ New Addons`;
     const commitList = addonUpdates.map((change) => {
         const url = change.isPrivate ? hiddenURL : `${change.addon.url}/tree/${change.addon.branch}`;
-        const name = change.addon.name;
+        const name = change.addon.name || change.addon.repo;
         return `- [**${name}**](${url})`;
     }).join('\n');
     const embed = {

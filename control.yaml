@@ -1,0 +1,454 @@
+addons:
+  - url: https://github.com/Stooberton/ACF-3
+    branch: master
+
+  - url: https://github.com/TwistedTail/ACF-3-Missiles
+    branch: master
+
+  - url: https://github.com/CFC-Servers/advdupe2
+    branch: cfc
+
+  - url: https://github.com/CFC-Servers/m9k_monorepo
+    branch: main
+
+  - url: https://github.com/CFC-Servers/anti_noclip
+    branch: main
+
+  - url: https://github.com/CFC-Servers/cfc_77.15.580
+    branch: lua
+
+  - url: https://github.com/CFC-Servers/cfc_acf_surprise_party
+    branch: main
+
+  - url: https://github.com/CFC-Servers/cfc_admin_core
+    branch: master
+
+  - url: https://github.com/CFC-Servers/cfc_admin_remove
+    branch: main
+
+  - url: https://github.com/brandonsturgeon/cfc_antiafk_custom
+    branch: master
+
+  - url: https://github.com/CFC-Servers/cfc_apple_join_leave
+    branch: master
+
+  - url: https://github.com/CFC-Servers/cfc_apromote
+    branch: master
+
+  - url: https://github.com/CFC-Servers/cfc_attention_monitoring
+    branch: main
+
+  - url: https://github.com/CFC-Servers/cfc_auto_clean
+    branch: master
+
+  - url: https://github.com/brandonsturgeon/cfc_awarn
+    branch: master
+
+  - url: https://github.com/CFC-Servers/cfc_blacking_out_because_you_went_too_fast_too_quickly
+    branch: main
+
+  - url: https://github.com/CFC-Servers/cfc_block_luarun
+    branch: main
+
+  - url: https://github.com/CFC-Servers/cfc_bouncy_circle
+    branch: main
+
+  - url: https://github.com/CFC-Servers/cfc_chatblock
+    branch: main
+
+  - url: https://github.com/CFC-Servers/cfc_chat_visibility
+    branch: master
+
+  - url: https://github.com/CFC-Servers/cfc_chip_lister
+    branch: main
+
+  - url: https://github.com/CFC-Servers/cfc_cl_http_whitelist
+    branch: main
+
+  - url: https://github.com/CFC-Servers/cfc_cl_http_whitelist_configs
+    branch: master
+
+  - url: https://github.com/CFC-Servers/cfc_cl_optional_addons
+    branch: main
+
+  - url: https://github.com/CFC-Servers/cfc_cw2_enhancements
+    branch: master
+
+  - url: https://github.com/CFC-Servers/cfc_detached_timer
+    branch: main
+
+  - url: https://github.com/CFC-Servers/cfc_disconnect_interface
+    branch: main
+
+  - url: https://github.com/CFC-Servers/cfc_dynamic_limits
+    branch: main
+
+  - url: https://github.com/CFC-Servers/cfc_e2_http_restrictions
+    branch: master
+
+  - url: https://github.com/CFC-Servers/cfc_e2_lib
+    branch: master
+
+  - url: https://github.com/CFC-Servers/cfc_entity_stubber
+    branch: main
+
+  - url: https://github.com/CFC-Servers/cfc_entity_stubber_build_kill
+    branch: main
+
+  - url: https://github.com/CFC-Servers/cfc_fancy_votes
+    branch: main
+
+  - url: https://github.com/CFC-Servers/cfc_free_speech_restrictions
+    branch: main
+
+  - url: https://github.com/CFC-Servers/cfc_friendwarn
+    branch: lua
+
+  - url: https://github.com/CFC-Servers/cfc_glua_record_keeper
+    branch: lua
+
+  - url: https://github.com/CFC-Servers/cfc_gm_help
+    branch: main
+
+  - url: https://github.com/CFC-Servers/cfc_gmod_ping
+    branch: lua
+
+  - url: https://github.com/CFC-Servers/cfc_gmod_scripts
+    branch: main
+
+  - url: https://github.com/CFC-Servers/cfc_gmod_webhooker_interface
+    branch: lua
+
+  - url: https://github.com/CFC-Servers/gmod-voicechannels
+    branch: master
+
+  - url: https://github.com/brandonsturgeon/cfc_gscoreboard
+    branch: master
+
+  - url: https://github.com/CFC-Servers/cfc_ignore_lag
+    branch: lua
+
+  - url: https://github.com/CFC-Servers/ji_defense_solutions
+    branch: main
+
+  - url: https://github.com/CFC-Servers/cfc_leftovers
+    branch: lua
+
+  - url: https://github.com/CFC-Servers/gm_logger
+    branch: lua
+
+  - url: https://github.com/CFC-Servers/cfc_logging_extension
+    branch: lua
+
+  - url: https://github.com/CFC-Servers/cfc_map_scripts
+    branch: main
+
+  - url: https://github.com/CFC-Servers/cfc_marums_hoverballs
+    branch: master
+
+  - url: https://github.com/CFC-Servers/cfc_midi_interface
+    branch: master
+
+  - url: https://github.com/CFC-Servers/cfc_mobile_spawnpoint_2
+    branch: master
+
+  - url: https://github.com/CFC-Servers/cfc_network_promises
+    branch: master
+
+  - url: https://github.com/CFC-Servers/cfc_nodrive
+    branch: master
+
+  - url: https://github.com/CFC-Servers/cfc_no_more_gib
+    branch: main
+
+  - url: https://github.com/CFC-Servers/cfc_no_soliciting
+    branch: main
+
+  - url: https://github.com/CFC-Servers/cfc_notifications
+    branch: master
+
+  - url: https://github.com/CFC-Servers/cfc_pac_sweps
+    branch: main
+
+  - url: https://github.com/CFC-Servers/cfc_pain_sounds
+    branch: lua
+
+  - url: https://github.com/CFC-Servers/cfc_parachutes
+    branch: main
+
+  - url: https://github.com/CFC-Servers/cfc_placed_explosives_limiter
+    branch: master
+
+  - url: https://github.com/CFC-Servers/playercore
+    branch: master
+
+  - url: https://github.com/CFC-Servers/cfc_player_model_regulator
+    branch: master
+
+  - url: https://github.com/CFC-Servers/cfc_powerups
+    branch: lua
+
+  - url: https://github.com/CFC-Servers/cfc_prop_restoration
+    branch: main
+
+  - url: https://github.com/CFC-Servers/cfc_proximity_voice
+    branch: main
+
+  - url: https://github.com/CFC-Servers/cfc_punt
+    branch: lua
+
+  - url: https://github.com/CFC-Servers/cfc_pvp
+    branch: lua
+
+  - url: https://github.com/CFC-Servers/cfc_pvp_movespeed
+    branch: master
+
+  - url: https://github.com/CFC-Servers/cfc_pvp_weapons
+    branch: feature/rework-parachutes
+
+  - url: https://github.com/CFC-Servers/cfc_random_spawn
+    branch: master
+
+  - url: https://github.com/CFC-Servers/cfc_remove_tabs
+    branch: master
+
+  - url: https://github.com/CFC-Servers/cfc_restart_lib
+    branch: lua
+
+  - url: https://github.com/CFC-Servers/cfc_restrict_materials
+    branch: main
+
+  - url: https://github.com/CFC-Servers/cfc_restrict_propcore
+    branch: main
+
+  - url: https://github.com/CFC-Servers/cfc_restrict_properties
+    branch: master
+
+  - url: https://github.com/CFC-Servers/cfc_restrict_sounds
+    branch: main
+
+  - url: https://github.com/CFC-Servers/cfc_rotary_messages
+    branch: lua
+
+  - url: https://github.com/CFC-Servers/cfc_settings
+    branch: main
+
+  - url: https://github.com/CFC-Servers/cfc_sf_lib
+    branch: master
+
+  - url: https://github.com/CFC-Servers/cfc_spawn_protection
+    branch: main
+
+  - url: https://github.com/CFC-Servers/cfc_streamcore
+    branch: master
+
+  - url: https://github.com/CFC-Servers/webaudio
+    branch: main
+
+  - url: https://github.com/CFC-Servers/cfc_time
+    branch: master
+
+  - url: https://github.com/CFC-Servers/cfc_tool_balance
+    branch: main
+
+  - url: https://github.com/CFC-Servers/cfc_ulx_commands
+    branch: master
+
+  - url: https://github.com/CFC-Servers/cfc_waiter
+    branch: master
+
+  - url: https://github.com/CFC-Servers/cfc_weapon_loadouts
+    branch: main
+
+  - url: https://github.com/CFC-Servers/cfc_weapon_lockouts
+    branch: main
+
+  - url: https://github.com/CFC-Servers/cfc_yeeting
+    branch: main
+
+  - url: https://github.com/CFC-Servers/cw_hk416
+    branch: main
+
+  - url: https://github.com/CFC-Servers/emplacements
+    branch: main
+
+  - url: https://github.com/CFC-Servers/fin2
+    branch: master
+
+  - url: https://github.com/FPtje/Falcos-Prop-protection
+    branch: master
+
+  - url: https://github.com/CFC-Servers/FProfiler
+    branch: feature/high-octane-performance
+
+  - url: https://github.com/CFC-Servers/FSpectate
+    branch: master
+
+  - url: https://github.com/CFC-Servers/gcompute
+    branch: master
+
+  - url: https://github.com/CFC-Servers/glib
+    branch: master
+
+  - url: https://github.com/CFC-Servers/gooey
+    branch: master
+
+  - url: https://github.com/CFC-Servers/vfs
+    branch: master
+
+  - url: https://github.com/CFC-Servers/gm_anticrash
+    branch: master
+
+  - url: https://github.com/CFC-Servers/gm_express
+    branch: feature/include-http-failures-in-retries
+
+  - url: https://github.com/CFC-Servers/gm_express_bindings
+    branch: feature/rewrite
+
+  - url: https://github.com/CFC-Servers/gm_fists_buff
+    branch: main
+
+  - url: https://github.com/CFC-Servers/gm_nitrous
+    branch: main
+
+  - url: https://github.com/CFC-Servers/gmod_legs
+    branch: main
+
+  - url: https://github.com/CFC-Servers/gm_playerload
+    branch: master
+
+  - url: https://github.com/CFC-Servers/gm_please_stop_lagging_the_server
+    branch: main
+
+  - url: https://github.com/CFC-Servers/gm_setdsp_patch
+    branch: main
+
+  - url: https://github.com/CFC-Servers/gm_steam_lookup
+    branch: lua
+
+  - url: https://github.com/CFC-Servers/gm_sudo
+    branch: lua
+
+  - url: https://github.com/CFC-Servers/gm_sv_lua_audit
+    branch: main
+
+  - url: https://github.com/CFC-Servers/gm_throttle
+    branch: lua
+
+  - url: https://github.com/CFC-Servers/gm_voice_balance
+    branch: main
+
+  - url: https://github.com/CFC-Servers/gm_weaponcore
+    branch: main
+
+  - url: https://github.com/CFC-Servers/gmod-gpaint
+    branch: master
+
+  - url: https://github.com/CFC-Servers/improved-stacker
+    branch: master
+
+  - url: https://github.com/CFC-Servers/improved-weight
+    branch: master
+
+  - url: https://github.com/npcsv/lfs-simphys-limiter
+    branch: main
+
+  - url: https://github.com/CFC-Servers/map_vote
+    branch: main
+
+  - url: https://github.com/CFC-Servers/musical-keyboard
+    branch: master
+
+  - url: https://github.com/CFC-Servers/pac3
+    branch: develop
+
+  - url: https://github.com/CheezusChrust/Physgun-Buildmode
+    branch: master
+
+  - url: https://github.com/CFC-Servers/precision_alignment
+    branch: master
+
+  - url: https://github.com/CFC-Servers/Prop2Mesh
+    branch: feature/reduce-index-calls
+
+  - url: https://github.com/CFC-Servers/simfphys_base
+    branch: master
+
+  - url: https://github.com/CFC-Servers/Sit-Anywhere
+    branch: master
+
+  - url: https://github.com/CFC-Servers/smartsnap
+    branch: main
+
+  - url: https://github.com/thegrb93/StarfallEx
+    branch: master
+
+  - url: https://github.com/samuelWilliams99/StarfallEx_PrintPermissions
+    branch: master
+
+  - url: https://github.com/npc-servers/textscreen-logger
+    branch: main
+
+  - url: https://github.com/CFC-Servers/the_orb
+    branch: main
+
+  - url: https://github.com/CFC-Servers/tilebuild
+    branch: main
+
+  - url: https://github.com/CFC-Servers/tool_search_and_favorites
+    branch: main
+
+  - url: https://github.com/CFC-Servers/ulib
+    branch: cfc
+
+  - url: https://github.com/CFC-Servers/ulx
+    branch: cfc
+
+  - url: https://github.com/CFC-Servers/urs
+    branch: master
+
+  - url: https://github.com/CFC-Servers/wall_kick_parkour
+    branch: main
+
+  - url: https://github.com/wiremod/wire
+    branch: master
+
+  - url: https://github.com/CFC-Servers/wire-extras
+    branch: master
+
+  - url: https://github.com/CFC-Servers/gmod-workshop-downloader
+    branch: master
+
+  - url: https://github.com/CFC-Servers/gm_steam_lookup
+    branch: lua
+
+  - url: https://github.com/MalboroDEV/permaprops
+    branch: master
+
+  - url: https://github.com/CFC-Servers/cfc_wiremod_limitations
+    branch: lua
+
+  - url: https://github.com/CFC-Servers/cw2_icons_fix
+    branch: main
+
+  - url: https://github.com/CFC-Servers/gm_nanny_functions
+    branch: main
+
+  - url: https://github.com/CFC-Servers/chucks_weaponry_2.0
+    branch: main
+
+  - url: https://github.com/CFC-Servers/cfc_constraint_limiter
+    branch: main
+
+  - url: https://github.com/CFC-Servers/cfc_err_forwarder
+    branch: lua
+
+  - url: https://github.com/CFC-Servers/material-editor-tool
+    branch: main
+
+  - url: https://github.com/CFC-Servers/lfs_planes
+    branch: main
+
+  - url: https://github.com/CFC-Servers/gm_packer
+    branch: main
+

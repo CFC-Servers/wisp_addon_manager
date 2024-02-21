@@ -18,6 +18,7 @@ export interface InstalledAddon {
   commit: string;
 }
 
+export type AddonURLToAddonMap = {[url: string]: InstalledAddon};
 
 export interface AddonDeleteInfo {
   addon: InstalledAddon
@@ -30,10 +31,9 @@ export interface AddonCreateInfo {
 
 export interface AddonUpdateInfo {
   addon: InstalledAddon;
-  updateInfo: CompareDTO;
+  updateInfo: CompareDTO | undefined;
   isPrivate?: boolean;
 }
-
 
 export interface AddonDeleteFailure {
   addon: InstalledAddon;
@@ -55,3 +55,10 @@ export interface AddonGitInfo {
   branch: string;
   commit: string;
 }
+
+export interface AddonRemoteGitInfo {
+  latestCommit: string;
+  isPrivate: boolean;
+}
+
+export type AddonRemoteGitInfoMap = {[url: string]: AddonRemoteGitInfo};
