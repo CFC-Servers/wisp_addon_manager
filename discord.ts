@@ -9,7 +9,7 @@ const EMBED_COLORS = {
   create: 0x32CD32,
 };
 
-const hiddenURL = "https://github.com/404";
+const hiddenURL = "http://__";
 
 const getLinkForAddon = (addon: InstalledAddon | DesiredAddon) => {
   const url = `${addon.url.replace(".git", "")}/tree/${addon.branch}`;
@@ -32,7 +32,7 @@ const generateUpdateEmbed = (addonUpdate: AddonUpdateInfo) => {
     if (isPrivate) {
       commit.message = commit.message.replace(/[^ ]/g, "❚");
 
-      commit.author.username = "unknown"
+      commit.author.username = "?"
       commit.author.url = hiddenURL;
 
       commit.url = hiddenURL

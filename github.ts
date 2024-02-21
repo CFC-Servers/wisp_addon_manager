@@ -216,7 +216,7 @@ export const getLatestCommitHashes = async (ghPAT: string, addons: AddonURLToAdd
       const addon = addonsList[addonIndex];
 
       const info: AddonRemoteGitInfo = {
-        latestCommit: item.ref.target.oid,
+        latestCommit: item.ref?.target?.oid || "UNKNOWN",
         isPrivate: item.isPrivate
       }
 

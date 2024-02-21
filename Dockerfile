@@ -6,7 +6,7 @@ COPY package.json package.json
 COPY *.tgz .
 
 RUN npm i --force && npm install typescript -g 
-RUN npm update wispjs
+RUN npm update @cfc-servers/wispjs
 
 COPY tsconfig.json tsconfig.json
 COPY *.ts ./

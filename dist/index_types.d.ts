@@ -27,7 +27,7 @@ export interface AddonCreateInfo {
 }
 export interface AddonUpdateInfo {
     addon: InstalledAddon;
-    updateInfo: CompareDTO;
+    updateInfo: CompareDTO | undefined;
     isPrivate?: boolean;
 }
 export interface AddonDeleteFailure {

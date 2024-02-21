@@ -29,6 +29,7 @@ export const gitCommitDiff = async (ghPAT, owner, repo, oldSHA, newSHA) => {
         repo: repo,
         basehead: basehead,
     });
+    console.log(`Got response from Github for ${owner}/${repo}`);
     const compareDTO = {
         url: content.data.html_url,
         commits: []
@@ -77,7 +78,7 @@ export const getLatestCommitHashes = async (ghPAT, addons) => {
             const addonIndex = parseInt(key.substring(4));
             const addon = addonsList[addonIndex];
             const info = {
-                latestCommit: item.ref.target.oid,
+                latestCommit: item.ref?.target?.oid || "UNKNOWN",
                 isPrivate: item.isPrivate
             };
             result[addon.url] = info;

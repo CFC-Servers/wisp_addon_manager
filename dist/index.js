@@ -1,6 +1,5 @@
 import YAML from "yaml";
-// import lzma from "lzma-native"
-import { WispInterface } from "wispjs";
+import { WispInterface } from "@cfc-servers/wispjs";
 import { generateUpdateWebhook, generateFailureWebhook } from "./discord.js";
 import { gitCommitDiff, getLatestCommitHashes } from "./github.js";
 const logger = {
@@ -132,8 +131,7 @@ const cloneAddons = async (wisp, desiredAddons) => {
             const desiredName = desiredAddon.name;
             if (desiredName) {
                 logger.info(`New addon has a desired name. Renaming: ${name} -> ${desiredName}`);
-                const renameResult = await wisp.api.renameFile(`/garrysmod/addons/${name}`, `/garrysmod/addons/${desiredName}`);
-                logger.info(`Rename status response: ${renameResult.status} - ${renameResult.statusText}`);
+                await wisp.api.Filesystem.RenameFile(`/garrysmod/addons/${name}`, `/garrysmod/addons/${desiredName}`);
             }
             successes.push(createdAddon);
         }
@@ -153,15 +151,18 @@ const cloneAddons = async (wisp, desiredAddons) => {
         successes: successes
     };
 };
+/*
+ * If the error message is in this list, we should reclone the addon
+ */
 const errorsTriggeringReclone = {
     "No merge base found": true,
     "Unknown Error. Try again later.": true
 };
-const updateAddon = async (ghPAT, wisp, addon) => {
-    const currentCommit = addon.commit;
+const updateAddon = async (wisp, addon) => {
     let pullResult;
     try {
         pullResult = await wisp.socket.gitPull(addon.path);
+        console.log("Got pull result:", pullResult);
     }
     catch (e) {
         let errorMessage = "Unknown Error";
@@ -182,11 +183,11 @@ const updateAddon = async (ghPAT, wisp, addon) => {
             else {
                 console.log(`'${errorMessage}' on nonstandared branch pull - deleting and recloning`, addon.path);
                 // Delete and reclone
-                await wisp.api.deleteFiles([addon.path]);
+                await wisp.api.Filesystem.DeleteFiles([addon.path]);
                 await wisp.socket.gitClone(addon.url, "/garrysmod/addons", addon.branch);
                 if (addon.name !== addon.repo) {
                     console.log(`Recloned a broken repo that has a custom name: ${addon.url} wants to be at ${addon.name}`);
-                    await wisp.api.renameFile(`/garrysmod/addons/${addon.repo}`, `/garrysmod/addons/${addon.name}`);
+                    await wisp.api.Filesystem.RenameFile(`/garrysmod/addons/${addon.repo}`, `/garrysmod/addons/${addon.name}`);
                 }
                 pullResult = await wisp.socket.gitPull(addon.path);
             }
@@ -195,26 +196,11 @@ const updateAddon = async (ghPAT, wisp, addon) => {
             throw (e);
         }
     }
-    const newCommit = pullResult.output;
-    const isPrivate = pullResult.isPrivate;
     const addonUpdate = {
         addon: addon,
-        isPrivate: isPrivate
+        isPrivate: pullResult.isPrivate
     };
-    if (currentCommit !== newCommit) {
-        try {
-            logger.info(`Changes detected for ${addon.repo} - getting diff`);
-            const change = await gitCommitDiff(ghPAT, addon.owner, addon.repo, currentCommit, newCommit);
-            addonUpdate.change = change;
-        }
-        catch (e) {
-            throw (`Failed to retrieve git diff: ${e}`);
-        }
-    }
-    else {
-        logger.info(`No changes for ${addon.repo}`);
-    }
-    return addonUpdate;
+    return { update: addonUpdate, newCommit: pullResult.output };
 };
 const processControlFile = async (controlFile, toClone, toUpdate, toDelete, installedAddons) => {
     const desiredAddons = await getDesiredAddons(controlFile);
@@ -235,7 +221,6 @@ const processControlFile = async (controlFile, toClone, toUpdate, toDelete, inst
         // Otherwise, we have to check if the branch and dir name are correct
         // (This will trigger a deletion _and_ a clone)
         if (branchMatch && nameMatch) {
-            console.log("Branch and name match, marking for update:", installedAddon.path);
             toUpdate.push(installedAddon);
         }
         else {
@@ -262,7 +247,7 @@ const handleDeleteQueue = async (wisp, toDelete, allChanges, allFailures) => {
     for (const addon of toDelete) {
         logger.info(`Deleting ${addon.path}`);
         try {
-            await wisp.api.deleteFiles([addon.path]);
+            await wisp.api.Filesystem.DeleteFiles([addon.path]);
             const change = {
                 addon: addon,
             };
@@ -304,17 +289,33 @@ const handleCloneQueue = async (wisp, toClone, allChanges, allFailures) => {
     }
 };
 const handleUpdateQueue = async (wisp, ghPAT, toUpdate, allChanges, allFailures) => {
-    const addonUpdates = toUpdate.map((addon) => updateAddon(ghPAT, wisp, addon));
+    const addonUpdates = toUpdate.map((addon) => updateAddon(wisp, addon));
     const results = await Promise.allSettled(addonUpdates);
-    results.forEach((result, index) => {
+    console.log("Handled all updates in the queue");
+    for (const [index, result] of results.entries()) {
         if (result.status == "fulfilled") {
-            const update = result.value;
-            if (!update.change) {
-                return;
+            const struct = result.value;
+            const update = struct.update;
+            const addon = update.addon;
+            const currentCommit = addon.commit;
+            const newCommit = struct.newCommit;
+            let change;
+            console.log(`Checking for changes in ${addon.repo}, commit ${currentCommit} -> ${newCommit}`);
+            if (currentCommit === newCommit) {
+                logger.info(`No changes for ${addon.repo}`);
+            }
+            else {
+                try {
+                    logger.info(`Changes detected for ${addon.repo} - getting diff`);
+                    change = await gitCommitDiff(ghPAT, addon.owner, addon.repo, currentCommit, newCommit);
+                }
+                catch (e) {
+                    logger.error(`Failed to retrieve git diff: ${e}`);
+                }
             }
             const changeInfo = {
                 addon: update.addon,
-                updateInfo: update.change,
+                updateInfo: change,
                 isPrivate: update.isPrivate
             };
             allChanges.update.push(changeInfo);
@@ -328,14 +329,22 @@ const handleUpdateQueue = async (wisp, ghPAT, toUpdate, allChanges, allFailures)
             };
             allFailures.update.push(failure);
         }
-    });
+    }
 };
 // Filters the given update queue to only include addons that /need/ an update
 // (If its commit [as described by the gmod server] does not match the latest commit fetched from Git)
 const filterUpdateQueue = (toUpdate, remoteGitInfo) => {
     return toUpdate.filter((addon) => {
         const remoteInfo = remoteGitInfo[addon.url];
-        return addon.commit != remoteInfo.latestCommit;
+        return addon.commit !== remoteInfo.latestCommit;
+    });
+};
+// If the desired branch doesn't exist, or isn't accessible by the checker, we should remove them and alert
+const findBadBranches = (toUpdate, remoteGitInfo) => {
+    return toUpdate.filter((addon) => {
+        const remoteInfo = remoteGitInfo[addon.url];
+        const latestCommit = remoteInfo.latestCommit;
+        return latestCommit === "UNKNOWN";
     });
 };
 async function manageAddons(wisp, serverName, ghPAT, alertWebhook, failureWebhook, controlFile) {
@@ -382,7 +391,20 @@ async function manageAddons(wisp, serverName, ghPAT, alertWebhook, failureWebhoo
     }
     // Updated Addons
     if (toUpdate.length > 0) {
-        const filtered = filterUpdateQueue(toUpdate, remoteGitInfo);
+        // This is a list of addons whose desired/current branch doesn't exist
+        const badBranches = findBadBranches(toUpdate, remoteGitInfo);
+        for (const addon of badBranches) {
+            logger.info(`Bad branch detected for ${addon.repo}`);
+            const failure = {
+                addon: addon,
+                error: `Branch does not exist or is not accessible: '${addon.branch}'`
+            };
+            allFailures.update.push(failure);
+        }
+        // Remove the bad branches
+        let filtered = toUpdate.filter((addon) => !badBranches.includes(addon));
+        // Filter out addons that don't need an update
+        filtered = filterUpdateQueue(filtered, remoteGitInfo);
         await handleUpdateQueue(wisp, ghPAT, filtered, allChanges, allFailures);
     }
     else {

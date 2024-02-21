@@ -5,8 +5,8 @@ addons:
   - url: https://github.com/TwistedTail/ACF-3-Missiles
     branch: master
 
-  - url: https://github.com/wiremod/advdupe2
-    branch: master
+  - url: https://github.com/CFC-Servers/advdupe2
+    branch: cfc
 
   - url: https://github.com/CFC-Servers/m9k_monorepo
     branch: main
@@ -71,9 +71,6 @@ addons:
   - url: https://github.com/CFC-Servers/cfc_cl_optional_addons
     branch: main
 
-  - url: https://github.com/CFC-Servers/cfc_contact_forms
-    branch: main
-
   - url: https://github.com/CFC-Servers/cfc_cw2_enhancements
     branch: master
 
@@ -107,7 +104,7 @@ addons:
   - url: https://github.com/CFC-Servers/cfc_friendwarn
     branch: lua
 
-  - url: https://github.com/brandonsturgeon/cfc_glua_record_keeper
+  - url: https://github.com/CFC-Servers/cfc_glua_record_keeper
     branch: lua
 
   - url: https://github.com/CFC-Servers/cfc_gm_help
@@ -155,9 +152,6 @@ addons:
   - url: https://github.com/CFC-Servers/cfc_mobile_spawnpoint_2
     branch: master
 
-  - url: https://github.com/CFC-Servers/cfc_modlog
-    branch: main
-
   - url: https://github.com/CFC-Servers/cfc_network_promises
     branch: master
 
@@ -178,6 +172,9 @@ addons:
 
   - url: https://github.com/CFC-Servers/cfc_pain_sounds
     branch: lua
+
+  - url: https://github.com/CFC-Servers/cfc_parachutes
+    branch: main
 
   - url: https://github.com/CFC-Servers/cfc_placed_explosives_limiter
     branch: master
@@ -207,13 +204,16 @@ addons:
     branch: master
 
   - url: https://github.com/CFC-Servers/cfc_pvp_weapons
-    branch: main
+    branch: feature/rework-parachutes
 
   - url: https://github.com/CFC-Servers/cfc_random_spawn
     branch: master
 
   - url: https://github.com/CFC-Servers/cfc_remove_tabs
     branch: master
+
+  - url: https://github.com/CFC-Servers/cfc_restart_lib
+    branch: lua
 
   - url: https://github.com/CFC-Servers/cfc_restrict_materials
     branch: main
@@ -269,9 +269,6 @@ addons:
   - url: https://github.com/CFC-Servers/cw_hk416
     branch: main
 
-  - url: https://github.com/CFC-Servers/damagecore
-    branch: master
-
   - url: https://github.com/CFC-Servers/emplacements
     branch: main
 
@@ -288,22 +285,19 @@ addons:
     branch: master
 
   - url: https://github.com/CFC-Servers/gcompute
-    branch: fast
+    branch: master
 
   - url: https://github.com/CFC-Servers/glib
-    branch: feature/speedup
+    branch: master
 
   - url: https://github.com/CFC-Servers/gooey
-    branch: fast
+    branch: master
 
   - url: https://github.com/CFC-Servers/vfs
-    branch: fast
+    branch: master
 
   - url: https://github.com/CFC-Servers/gm_anticrash
     branch: master
-
-  - url: https://github.com/CFC-Servers/gm_bigchat
-    branch: main
 
   - url: https://github.com/CFC-Servers/gm_express
     branch: feature/include-http-failures-in-retries
@@ -314,19 +308,10 @@ addons:
   - url: https://github.com/CFC-Servers/gm_fists_buff
     branch: main
 
-  - url: https://github.com/CFC-Servers/gm_mixpanel
-    branch: lua
-
   - url: https://github.com/CFC-Servers/gm_nitrous
     branch: main
 
-  - url: https://github.com/CFC-Servers/gm_nsa
-    branch: release
-
   - url: https://github.com/CFC-Servers/gmod_legs
-    branch: main
-
-  - url: https://github.com/CFC-Servers/gm_path_traversal_mitigation
     branch: main
 
   - url: https://github.com/CFC-Servers/gm_playerload
@@ -356,15 +341,13 @@ addons:
   - url: https://github.com/CFC-Servers/gm_weaponcore
     branch: main
 
-  - url: https://github.com/CFC-Servers/gm_x86_64_performance_fix
-    branch: main
   - url: https://github.com/CFC-Servers/gmod-gpaint
     branch: master
 
   - url: https://github.com/CFC-Servers/improved-stacker
     branch: master
 
-  - url: https://github.com/Mista-Tea/improved-weight
+  - url: https://github.com/CFC-Servers/improved-weight
     branch: master
 
   - url: https://github.com/npcsv/lfs-simphys-limiter
@@ -376,7 +359,7 @@ addons:
   - url: https://github.com/CFC-Servers/musical-keyboard
     branch: master
 
-  - url: https://github.com/CapsAdmin/pac3
+  - url: https://github.com/CFC-Servers/pac3
     branch: develop
 
   - url: https://github.com/CheezusChrust/Physgun-Buildmode
@@ -386,7 +369,7 @@ addons:
     branch: master
 
   - url: https://github.com/CFC-Servers/Prop2Mesh
-    branch: master
+    branch: feature/reduce-index-calls
 
   - url: https://github.com/CFC-Servers/simfphys_base
     branch: master
@@ -445,9 +428,6 @@ addons:
   - url: https://github.com/CFC-Servers/cfc_wiremod_limitations
     branch: lua
 
-  - url: https://github.com/CFC-Servers/cfc_familysharing
-    branch: master
-
   - url: https://github.com/CFC-Servers/cw2_icons_fix
     branch: main
 
@@ -462,4 +442,13 @@ addons:
 
   - url: https://github.com/CFC-Servers/cfc_err_forwarder
     branch: lua
+
+  - url: https://github.com/CFC-Servers/material-editor-tool
+    branch: main
+
+  - url: https://github.com/CFC-Servers/lfs_planes
+    branch: main
+
+  - url: https://github.com/CFC-Servers/gm_packer
+    branch: main
 
