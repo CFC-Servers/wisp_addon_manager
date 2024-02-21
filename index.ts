@@ -546,10 +546,9 @@ export async function ManageAddons(config: ManageAddonsConfig) {
     failureWebhook, controlFile
   } = config
 
-  const wisp = new WispInterface(domain, uuid, token)
+  const wisp = new WispInterface(domain, uuid, token, ghPAT)
 
   try {
-    await wisp.connect(ghPAT)
     await manageAddons(wisp, serverName, ghPAT, alertWebhook, failureWebhook, controlFile)
     console.log("manageAddons done, disconnecting from Wisp...")
     await wisp.disconnect()

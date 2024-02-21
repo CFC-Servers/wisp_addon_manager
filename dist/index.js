@@ -419,15 +419,18 @@ async function manageAddons(wisp, serverName, ghPAT, alertWebhook, failureWebhoo
 }
 export async function ManageAddons(config) {
     const { domain, uuid, serverName, token, ghPAT, alertWebhook, failureWebhook, controlFile } = config;
-    const wisp = new WispInterface(domain, uuid, token);
+    const wisp = new WispInterface(domain, uuid, token, ghPAT);
     try {
-        await wisp.connect(ghPAT);
         await manageAddons(wisp, serverName, ghPAT, alertWebhook, failureWebhook, controlFile);
+        console.log("manageAddons done, disconnecting from Wisp...");
         await wisp.disconnect();
+        console.log("Disconnected from Wisp - done!");
     }
     catch (e) {
         logger.error(e);
+        console.log("manageAddons errored, disconnecting from Wisp...");
         await wisp.disconnect();
+        console.log("Disconnected from Wisp - done!");
         throw e;
     }
 }
