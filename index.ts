@@ -1,6 +1,6 @@
 import YAML from "yaml"
 
-import { WispInterface } from "@cfc-servers/wispjs"
+import { WispInterface } from "wispjs"
 import { generateUpdateWebhook, generateFailureWebhook } from "./discord.js"
 import { gitCommitDiff, getLatestCommitHashes } from "./github.js"
 
