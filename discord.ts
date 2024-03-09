@@ -9,7 +9,7 @@ const EMBED_COLORS = {
   create: 0x32CD32,
 };
 
-const hiddenURL = "http://__";
+const hiddenURL = "https://github.com/404";
 
 const getLinkForAddon = (addon: InstalledAddon | DesiredAddon) => {
   const url = `${addon.url.replace(".git", "")}/tree/${addon.branch}`;
@@ -19,10 +19,6 @@ const getLinkForAddon = (addon: InstalledAddon | DesiredAddon) => {
 const generateUpdateEmbed = (addonUpdate: AddonUpdateInfo) => {
   const { addon, updateInfo, isPrivate } = addonUpdate;
   const maxMessageLength = 50;
-
-  if (isPrivate && updateInfo) {
-    updateInfo.url = "https://github.com/404";
-  }
 
   const embedTitle = `🚀 Updates for: **\`${addon.name}\`**`;
   const diffURL = updateInfo?.url;
