@@ -24628,7 +24628,7 @@ const EMBED_COLORS = {
     delete: 0xFF4500,
     create: 0x32CD32,
 };
-const hiddenURL = "http://__";
+const hiddenURL = "https://github.com/404";
 const getLinkForAddon = (addon) => {
     const url = `${addon.url.replace(".git", "")}/tree/${addon.branch}`;
     return `[**${addon.name}**](${url})`;
@@ -24636,9 +24636,6 @@ const getLinkForAddon = (addon) => {
 const generateUpdateEmbed = (addonUpdate) => {
     const { addon, updateInfo, isPrivate } = addonUpdate;
     const maxMessageLength = 50;
-    if (isPrivate && updateInfo) {
-        updateInfo.url = "https://github.com/404";
-    }
     const embedTitle = `🚀 Updates for: **\`${addon.name}\`**`;
     const diffURL = updateInfo?.url;
     const commits = updateInfo?.commits || [];
