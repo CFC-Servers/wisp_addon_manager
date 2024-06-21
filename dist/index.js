@@ -24039,6 +24039,7 @@ Object.assign(lookup, {
 
 ;// CONCATENATED MODULE: ./node_modules/wispjs/dist/wisp_socket/pool.js
 
+const WISP_DEBUG = process.env.WISP_DEBUG === "true";
 /**
  * A single Worker within a {@link WebsocketPool}
  *
@@ -24050,6 +24051,7 @@ class PoolWorker {
     constructor(pool) {
         this.pool = pool;
         this.ready = false;
+        this.done = false;
         this.idx = pool.workers.length;
         this.token = pool.token;
         this.socket = lookup(pool.url, {
@@ -24062,10 +24064,13 @@ class PoolWorker {
         this.logger = {
             log: (...args) => console.log(logPrefix, args),
             error: (...args) => console.error(logPrefix, args),
+            debug: (...args) => {
+                if (!WISP_DEBUG)
+                    return;
+                console.debug(logPrefix, args);
+            }
         };
-    }
-    available() {
-        return this.ready && this.socket.connected;
+        this.connect().then(() => this.processWork()).catch(err => this.logger.error(err));
     }
     connect() {
         const socket = this.socket;
@@ -24073,12 +24078,9 @@ class PoolWorker {
         socket.onAnyOutgoing(this.logger.log);
         logger.log("Connecting to websocket...");
         return new Promise((resolve, reject) => {
-            let connectedOnce = false;
             const timeout = setTimeout(() => {
-                if (!connectedOnce) {
-                    logger.error("Socket didn't connect in time");
-                    reject("Connection Timeout");
-                }
+                logger.error("Socket didn't connect in time");
+                reject("Connection Timeout");
             }, 10000);
             socket.on("connect", () => {
                 logger.log("Connected to WebSocket");
@@ -24090,23 +24092,18 @@ class PoolWorker {
             });
             socket.on("connect_error", (error) => {
                 logger.error(`WebSocket Connect error: ${error.toString()}`);
-                if (!connectedOnce) {
-                    connectedOnce = true;
-                    clearTimeout(timeout);
-                    reject(`Connection error: ${error.toString()}`);
-                }
+                this.done = true;
+                clearTimeout(timeout);
+                reject(`Connection error: ${error.toString()}`);
             });
             socket.on("disconnect", (reason) => {
                 logger.log(`Disconnected from WebSocket: ${reason}`);
             });
             socket.on("auth_success", () => {
                 logger.log("Auth success");
-                if (!connectedOnce) {
-                    connectedOnce = true;
-                    this.ready = true;
-                    clearTimeout(timeout);
-                    resolve();
-                }
+                this.ready = true;
+                clearTimeout(timeout);
+                resolve();
             });
             socket.connect();
         });
@@ -24119,25 +24116,38 @@ class PoolWorker {
                 reject();
             }, 5000);
             this.socket.once("disconnect", () => {
+                this.done = true;
                 clearTimeout(timeout);
                 resolve();
             });
             this.socket.disconnect();
         });
     }
-    async run(work) {
-        this.ready = false;
-        // TODO: Verify that a finally is what we want here
-        try {
-            return await work(this);
-        }
-        catch (e) {
-            this.logger.error(e);
-            throw e;
-        }
-        finally {
-            this.ready = true;
-            this.pool.processQueue();
+    async processWork() {
+        while (!this.done) {
+            if (!this.ready) {
+                await new Promise(resolve => setTimeout(resolve, 100));
+                continue;
+            }
+            const work = this.pool.getWork();
+            if (work) {
+                this.ready = false;
+                try {
+                    this.logger.debug("Running my work");
+                    await work(this);
+                    this.logger.debug("Done with my work, ready for more");
+                }
+                catch (e) {
+                    this.logger.error("Failed to run work");
+                    this.logger.error(e);
+                }
+                finally {
+                    this.ready = true;
+                }
+            }
+            else {
+                await new Promise(resolve => setTimeout(resolve, 100));
+            }
         }
     }
 }
@@ -24154,44 +24164,34 @@ class PoolWorker {
  */
 class WebsocketPool {
     constructor(url, token) {
-        this.maxWorkers = 5;
+        const envMaxWorkers = process.env.WISP_MAX_WORKERS;
+        this.maxWorkers = envMaxWorkers ? parseInt(envMaxWorkers) : 5;
         this.token = token;
         this.url = url;
+        const logPrefix = "[Pool]";
+        this.logger = {
+            log: (...args) => console.log(logPrefix, args),
+            error: (...args) => console.error(logPrefix, args),
+            debug: (...args) => {
+                if (!WISP_DEBUG)
+                    return;
+                console.debug(logPrefix, args);
+            }
+        };
         this.workers = [];
         this.queue = [];
+        this.logger.log(`Creating a new Pool with ${this.maxWorkers} workers`);
+        for (let i = 0; i < this.maxWorkers; i++) {
+            this.workers.push(new PoolWorker(this));
+        }
     }
-    async createWorker() {
-        console.log("Creating a new Pool worker");
-        const worker = new PoolWorker(this);
-        this.workers.push(worker);
-        await worker.connect();
-        return worker;
+    getWork() {
+        return this.queue.shift();
     }
     async disconnect() {
+        this.logger.log("Disconnecting all workers...");
         await Promise.all(this.workers.map((worker) => worker.disconnect()));
-    }
-    async processQueue() {
-        if (this.queue.length == 0) {
-            return;
-        }
-        const work = this.queue.shift();
-        if (!work) {
-            return;
-        }
-        let worker;
-        if (this.workers.length == 0) {
-            worker = await this.createWorker();
-        }
-        worker = worker || this.workers.find((worker) => worker.available());
-        if (!worker) {
-            if (this.workers.length < this.maxWorkers) {
-                worker = await this.createWorker();
-            }
-            else {
-                return;
-            }
-        }
-        return await worker.run(work);
+        this.logger.log("All workers disconnected");
     }
     async run(work) {
         return new Promise(async (resolve, reject) => {
@@ -24205,7 +24205,6 @@ class WebsocketPool {
                     reject(e);
                 }
             });
-            return this.processQueue();
         });
     }
 }
@@ -24302,10 +24301,11 @@ class WispSocket {
      * Searches all file contents for the given query
      *
      * @param query The query string to search for
+     * @param timeout How long to wait (in ms) for results before timing out
      *
      * @public
      */
-    async filesearch(query) {
+    async filesearch(query, timeout = 10000) {
         this.logger.info("Running filesearch with: ", query);
         await this.verifyPool();
         return await this.pool.run((worker) => {
@@ -24313,13 +24313,13 @@ class WispSocket {
             const logger = worker.logger;
             logger.log("Running filesearch:", query);
             return new Promise((resolve, reject) => {
-                const timeout = setTimeout(() => {
+                const timeoutObj = setTimeout(() => {
                     socket.off("filesearch-results");
                     logger.error("Rejected filesearch: 'Timeout'");
                     reject();
-                }, 10000);
+                }, timeout);
                 socket.once("filesearch-results", (data) => {
-                    clearTimeout(timeout);
+                    clearTimeout(timeoutObj);
                     resolve(data);
                 });
                 socket.emit("filesearch-start", query);
@@ -24330,10 +24330,11 @@ class WispSocket {
      * Performs a git pull operation on the given directory
      *
      * @param dir The full directory path to perform a pull on
+     * @param timeout In milliseconds, how long to wait before timing out
      *
      * @public
      */
-    async gitPull(dir, useAuth = false) {
+    async gitPull(dir, useAuth = false, timeout = 10000) {
         await this.verifyPool();
         const pullResult = await this.pool.run((worker) => {
             const socket = worker.socket;
@@ -24341,7 +24342,12 @@ class WispSocket {
             logger.log("Running gitPull:", dir);
             return new Promise((resolve, reject) => {
                 let isPrivate = false;
-                const finished = (success, output) => {
+                let finished;
+                const timeoutObj = setTimeout(() => {
+                    logger.error("Rejected gitPull: 'Timeout'");
+                    finished(false, "Timeout");
+                }, timeout);
+                finished = (success, output) => {
                     socket.removeAllListeners("git-pull");
                     socket.removeAllListeners("git-error");
                     socket.removeAllListeners("git-success");
@@ -24356,6 +24362,7 @@ class WispSocket {
                         logger.error("Rejected gitPull:", dir, output);
                         reject(output);
                     }
+                    clearTimeout(timeoutObj);
                 };
                 const sendRequest = (includeAuth = false) => {
                     const data = { dir: dir };
@@ -24400,10 +24407,11 @@ class WispSocket {
      * @param url The HTTPS URL of the repository
      * @param dir The full path of the directory to clone the repository to
      * @param branch The branch of the repository to clone
+     * @param timeout In milliseconds, how long to wait before timing out
      *
      * @public
      */
-    async gitClone(url, dir, branch) {
+    async gitClone(url, dir, branch, timeout = 20000) {
         await this.verifyPool();
         return await this.pool.run((worker) => {
             const socket = worker.socket;
@@ -24411,7 +24419,12 @@ class WispSocket {
             logger.log("Running gitClone:", url, dir, branch);
             return new Promise((resolve, reject) => {
                 let isPrivate = false;
-                const finished = (success, message) => {
+                let finished;
+                const timeoutObj = setTimeout(() => {
+                    logger.error("Rejected gitClone: 'Timeout'");
+                    finished(false, "Timeout");
+                }, timeout);
+                finished = (success, message) => {
                     socket.removeAllListeners("git-clone");
                     socket.removeAllListeners("git-error");
                     socket.removeAllListeners("git-success");
@@ -24425,6 +24438,7 @@ class WispSocket {
                         logger.error("Rejected gitClone:", url, dir, branch, message);
                         reject(message);
                     }
+                    clearTimeout(timeoutObj);
                 };
                 const sendRequest = (includeAuth = false) => {
                     const data = { dir: dir, url: url, branch: branch };
@@ -24545,7 +24559,7 @@ class WispSocket {
      *
      * @param nonce The short, unique string that your output will be prefixed with
      * @param command The full command string to send
-     * @param timeout How long to wait for output before timing out
+     * @param timeout In milliseconds, how long to wait for output before timing out
      *
      * @public
      */
@@ -24917,25 +24931,6 @@ const logger = {
     info: console.log,
     error: console.error
 };
-const convertFindKeyToPath = (key) => {
-    // "garrysmod/addons/niknaks/.git/config"
-    // ["garrysmod", "addons", "niknaks", ".git", "config"]
-    const keySplit = key.split("/");
-    // ["garrysmod", "addons", "niknaks", ".git"]
-    keySplit.pop();
-    // ["garrysmod", "addons", "niknaks"]
-    keySplit.pop();
-    // "/garrysmod/addons/niknaks"
-    const path = "/" + keySplit.join("/");
-    return path;
-};
-const getNameFromPath = (path) => {
-    // "/garrysmod/addons/niknaks"
-    // ["", "garrysmod", "addons", "niknaks"]
-    const spl = path.split("/");
-    // "niknaks"
-    return spl[spl.length - 1];
-};
 const getOwnerRepoFromURL = (url) => {
     // "https://github.com/cfc-servers/cfc_cl_http_whitelist.git"
     // [ "https:", "", "github.com", "cfc-servers", "cfc_cl_http_whitelist.git" ]
@@ -24949,52 +24944,39 @@ const getOwnerRepoFromURL = (url) => {
     // [ "cfc-servers", "cfc_cl_http_whitelist" ]
     return [owner, repo];
 };
-const setCurrentGitInfo = async (wisp, addons) => {
-    const dirToAddon = {};
-    for (const [_, addon] of Object.entries(addons)) {
-        const dirSpl = addon.path.split("/");
-        const dir = dirSpl[dirSpl.length - 1];
-        dirToAddon[dir] = addon;
+/* Tells the server to build a new gitinfo */
+const buildCurrentGitInfo = async (wisp) => {
+    try {
+        // Tell the server to build the new gitinfo file (if it's up)
+        const uuid = (Math.random() + 1).toString(36).substring(7);
+        const nonce = `nanny-${uuid}`;
+        const command = `nanny ${nonce} gitinfo`;
+        await wisp.socket.sendCommandNonce(`${nonce}: `, command);
+        logger.info("Server has generated new git info - Reading the file now");
     }
-    const uuid = (Math.random() + 1).toString(36).substring(7);
-    const nonce = `nanny-${uuid}`;
-    const command = `nanny ${nonce} gitinfo`;
-    const response = await wisp.socket.sendCommandNonce(`${nonce}: `, command);
-    const gitInfo = JSON.parse(response);
-    gitInfo.forEach((gitInfo) => {
-        const addon = dirToAddon[gitInfo.addon];
-        addon.branch = gitInfo.branch;
-        addon.commit = gitInfo.commit;
-    });
+    catch (e) {
+        logger.error("Failed to generate current git info (Is the server down?) - Reading the file instead");
+        logger.error(e);
+    }
 };
-// TODO: Only track addons that are in the addons folder?
+/* Reads the current gitinfo file from the server's filesystem */
+const readCurrentGitInfo = async (wisp) => {
+    return await wisp.api.Filesystem.ReadFile("/garrysmod/data/cfc/nanny_gitinfo.json");
+};
+// TODO: Parse this file with zod or similar
 const getTrackedAddons = async (wisp) => {
-    const addonSearch = await wisp.socket.filesearch(`remote "origin"`);
     const installedAddons = {};
-    for (const [key, value] of Object.entries(addonSearch.files)) {
-        const path = convertFindKeyToPath(key);
-        const name = getNameFromPath(path);
-        // Getting the url from the config file
-        // "\turl = https://github.com/CFC-Servers/cfc_cl_http_whitelist.git"
-        let url = value.lines[7];
-        // "https://github.com/CFC-Servers/cfc_cl_http_whitelist.git"
-        url = url.split("= ")[1];
-        // "https://github.com/cfc-servers/cfc_cl_http_whitelist.git"
-        url = url.toLowerCase();
-        const [owner, repo] = getOwnerRepoFromURL(url);
-        const addon = {
-            path: path,
-            name: name,
-            url: url,
-            owner: owner,
-            repo: repo,
-            branch: "unknown",
-            commit: "unknown"
-        };
-        installedAddons[url] = addon;
+    await buildCurrentGitInfo(wisp);
+    const infoFileContents = await readCurrentGitInfo(wisp);
+    const serverGitInfoFile = JSON.parse(infoFileContents);
+    const generatedAt = serverGitInfoFile.generatedAt;
+    const currentTimestamp = Math.floor(new Date().getTime() / 1000);
+    logger.info(`Generated at: ${generatedAt}, Current Time: ${currentTimestamp} - Addon Data is ${currentTimestamp - generatedAt} seconds old`);
+    // Create the map
+    const serverInstalledAddons = serverGitInfoFile.installedAddons;
+    for (const installedAddon of serverInstalledAddons) {
+        installedAddons[installedAddon.url] = installedAddon;
     }
-    // Sets addon.commit and addon.branch
-    await setCurrentGitInfo(wisp, installedAddons);
     return installedAddons;
 };
 const getDesiredAddons = async (controlFile) => {
@@ -25022,7 +25004,7 @@ const cloneAddons = async (wisp, desiredAddons) => {
     const addonClones = desiredAddons.map((addon) => {
         const url = `${addon.url}.git`;
         const branch = addon.branch;
-        console.log(`Cloning ${url} to /garrysmod/addons`);
+        logger.info(`Cloning ${url} to /garrysmod/addons`);
         return wisp.socket.gitClone(url, "/garrysmod/addons", branch);
     });
     const results = await Promise.allSettled(addonClones);
@@ -25073,7 +25055,7 @@ const updateAddon = async (wisp, addon) => {
     let pullResult;
     try {
         pullResult = await wisp.socket.gitPull(addon.path);
-        console.log("Got pull result:", pullResult);
+        logger.info("Got pull result:", pullResult);
     }
     catch (e) {
         let errorMessage = "Unknown Error";
@@ -25083,21 +25065,21 @@ const updateAddon = async (wisp, addon) => {
         else if (e instanceof Error) {
             errorMessage = e.toString();
         }
-        console.log("Full error message on pull:", `${errorMessage}'`);
+        logger.info("Full error message on pull:", `${errorMessage}'`);
         const isPrimaryBranch = addon.branch == "main" || addon.branch == "master";
         const canReclone = errorsTriggeringReclone[errorMessage];
         if (canReclone) {
             if (isPrimaryBranch) {
-                console.log(`'${errorMessage}' on primary branch pull. Ignoring in case it's temporary.`, addon.path, addon.branch);
+                logger.info(`'${errorMessage}' on primary branch pull. Ignoring in case it's temporary.`, addon.path, addon.branch);
                 throw (e);
             }
             else {
-                console.log(`'${errorMessage}' on nonstandared branch pull - deleting and recloning`, addon.path);
+                logger.info(`'${errorMessage}' on nonstandared branch pull - deleting and recloning`, addon.path);
                 // Delete and reclone
                 await wisp.api.Filesystem.DeleteFiles([addon.path]);
                 await wisp.socket.gitClone(addon.url, "/garrysmod/addons", addon.branch);
                 if (addon.name !== addon.repo) {
-                    console.log(`Recloned a broken repo that has a custom name: ${addon.url} wants to be at ${addon.name}`);
+                    logger.info(`Recloned a broken repo that has a custom name: ${addon.url} wants to be at ${addon.name}`);
                     await wisp.api.Filesystem.RenameFile(`/garrysmod/addons/${addon.repo}`, `/garrysmod/addons/${addon.name}`);
                 }
                 pullResult = await wisp.socket.gitPull(addon.path);
@@ -25121,7 +25103,7 @@ const processControlFile = async (controlFile, toClone, toUpdate, toDelete, inst
         const installedAddon = installedAddons[installedURL];
         // If we don't have it, get it
         if (!installedAddon) {
-            console.log(`Desired Addon does not appear in Installed list: ${installedURL}`);
+            logger.info(`Desired Addon does not appear in Installed list: ${installedURL}`);
             toClone.push(desiredAddon);
             continue;
         }
@@ -25136,10 +25118,10 @@ const processControlFile = async (controlFile, toClone, toUpdate, toDelete, inst
         }
         else {
             if (!branchMatch) {
-                console.log(`Branch mismatch for ${installedAddon.path}: ${installedAddon.branch} != ${desiredAddon.branch}`);
+                logger.info(`Branch mismatch for ${installedAddon.path}: ${installedAddon.branch} != ${desiredAddon.branch}`);
             }
             if (!nameMatch) {
-                console.log(`Name mismatch for ${installedAddon.path}: ${installedAddon.name} != ${desiredAddon.name}`);
+                logger.info(`Name mismatch for ${installedAddon.path}: ${installedAddon.name} != ${desiredAddon.name}`);
             }
             toDelete.push(installedAddon);
             toClone.push(desiredAddon);
@@ -25149,7 +25131,7 @@ const processControlFile = async (controlFile, toClone, toUpdate, toDelete, inst
         // Installed URL contains .git, Desired do not
         const installedURL = url.replace(".git", "");
         if (!(installedURL in desiredAddons)) {
-            console.log(`Installed addon is missing from desired list: ${installedURL} not in desiredAddons`);
+            logger.info(`Installed addon is missing from desired list: ${installedURL} not in desiredAddons`);
             toDelete.push(installedAddon);
         }
     }
@@ -25202,7 +25184,7 @@ const handleCloneQueue = async (wisp, toClone, allChanges, allFailures) => {
 const handleUpdateQueue = async (wisp, ghPAT, toUpdate, allChanges, allFailures) => {
     const addonUpdates = toUpdate.map((addon) => updateAddon(wisp, addon));
     const results = await Promise.allSettled(addonUpdates);
-    console.log("Handled all updates in the queue");
+    logger.info("Handled all updates in the queue");
     for (const [index, result] of results.entries()) {
         if (result.status == "fulfilled") {
             const struct = result.value;
@@ -25211,7 +25193,7 @@ const handleUpdateQueue = async (wisp, ghPAT, toUpdate, allChanges, allFailures)
             const currentCommit = addon.commit;
             const newCommit = struct.newCommit;
             let change;
-            console.log(`Checking for changes in ${addon.repo}, commit ${currentCommit} -> ${newCommit}`);
+            logger.info(`Checking for changes in ${addon.repo}, commit ${currentCommit} -> ${newCommit}`);
             if (currentCommit === newCommit) {
                 logger.info(`No changes for ${addon.repo}`);
             }
@@ -25259,19 +25241,19 @@ const findBadBranches = (toUpdate, remoteGitInfo) => {
     });
 };
 async function manageAddons(wisp, serverName, ghPAT, alertWebhook, failureWebhook, controlFile) {
-    console.log("Connected to Wisp - getting tracked addons");
+    logger.info("Connected to Wisp - getting tracked addons");
     const installedAddons = await getTrackedAddons(wisp);
-    console.log("Received addons. Getting Remote git info");
+    logger.info("Received addons. Getting Remote git info");
     const remoteGitInfo = await getLatestCommitHashes(ghPAT, installedAddons);
     const toClone = [];
     const toUpdate = [];
     const toDelete = [];
     if (controlFile) {
-        console.log("Control file provided - getting desired addons");
+        logger.info("Control file provided - getting desired addons");
         await processControlFile(controlFile, toClone, toUpdate, toDelete, installedAddons);
     }
     else {
-        console.log("No control file provided - updating all existing addons");
+        logger.info("No control file provided - updating all existing addons");
         for (const [_, installedAddon] of Object.entries(installedAddons)) {
             toUpdate.push(installedAddon);
         }
@@ -25333,15 +25315,16 @@ async function ManageAddons(config) {
     const wisp = new WispInterface(domain, uuid, token, ghPAT);
     try {
         await manageAddons(wisp, serverName, ghPAT, alertWebhook, failureWebhook, controlFile);
-        console.log("manageAddons done, disconnecting from Wisp...");
+        await buildCurrentGitInfo(wisp); // Update the gitinfo file now that we're done
+        logger.info("manageAddons done, disconnecting from Wisp...");
         await wisp.disconnect();
-        console.log("Disconnected from Wisp - done!");
+        logger.info("Disconnected from Wisp - done!");
     }
     catch (e) {
         logger.error(e);
-        console.log("manageAddons errored, disconnecting from Wisp...");
+        logger.info("manageAddons errored, disconnecting from Wisp...");
         await wisp.disconnect();
-        console.log("Disconnected from Wisp - done!");
+        logger.info("Disconnected from Wisp - done!");
         throw e;
     }
 }

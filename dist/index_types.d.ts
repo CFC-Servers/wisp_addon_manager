@@ -42,10 +42,9 @@ export interface AddonUpdateFailure {
     addon: InstalledAddon;
     error: string;
 }
-export interface AddonGitInfo {
-    addon: string;
-    branch: string;
-    commit: string;
+export interface ServerGitInfoFile {
+    generatedAt: number;
+    installedAddons: InstalledAddon[];
 }
 export interface AddonRemoteGitInfo {
     latestCommit: string;

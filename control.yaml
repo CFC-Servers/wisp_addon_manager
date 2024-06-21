@@ -204,7 +204,7 @@ addons:
     branch: master
 
   - url: https://github.com/CFC-Servers/cfc_pvp_weapons
-    branch: feature/rework-parachutes
+    branch: main
 
   - url: https://github.com/CFC-Servers/cfc_random_spawn
     branch: master
@@ -341,7 +341,7 @@ addons:
   - url: https://github.com/CFC-Servers/gm_weaponcore
     branch: main
 
-  - url: https://github.com/CFC-Servers/gmod-gpaint
+  - url: https://github.com/StyledStrike/gmod-gpaint
     branch: master
 
   - url: https://github.com/CFC-Servers/improved-stacker
@@ -356,7 +356,7 @@ addons:
   - url: https://github.com/CFC-Servers/map_vote
     branch: main
 
-  - url: https://github.com/CFC-Servers/musical-keyboard
+  - url: https://github.com/StyledStrike/musical-keyboard
     branch: master
 
   - url: https://github.com/CFC-Servers/pac3
@@ -432,7 +432,7 @@ addons:
     branch: main
 
   - url: https://github.com/CFC-Servers/gm_nanny_functions
-    branch: main
+    branch: feature/git-improvements
 
   - url: https://github.com/CFC-Servers/chucks_weaponry_2.0
     branch: main

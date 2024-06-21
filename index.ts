@@ -9,39 +9,11 @@ import type { ChangeMap, FailureMap } from "./discord.js"
 import type { AddonRemoteGitInfoMap, AddonURLToAddonMap, DesiredAddon, InstalledAddon }  from "./index_types.js"
 import type { AddonDeleteInfo, AddonCreateInfo, AddonUpdateInfo  } from "./index_types.js"
 import type { AddonDeleteFailure, AddonCreateFailure, AddonUpdateFailure } from "./index_types.js"
-import type { AddonGitInfo } from "./index_types.js"
+import type { ServerGitInfoFile } from "./index_types.js"
 
 const logger = {
   info: console.log,
   error: console.error
-}
-
-const convertFindKeyToPath = (key: string) => {
-    // "garrysmod/addons/niknaks/.git/config"
-
-    // ["garrysmod", "addons", "niknaks", ".git", "config"]
-    const keySplit = key.split("/")
-
-    // ["garrysmod", "addons", "niknaks", ".git"]
-    keySplit.pop()
-
-    // ["garrysmod", "addons", "niknaks"]
-    keySplit.pop()
-
-    // "/garrysmod/addons/niknaks"
-    const path = "/" + keySplit.join("/")
-
-    return path
-}
-
-const getNameFromPath = (path: string) => {
-    // "/garrysmod/addons/niknaks"
-
-    // ["", "garrysmod", "addons", "niknaks"]
-    const spl = path.split("/")
-
-    // "niknaks"
-    return spl[spl.length - 1]
 }
 
 const getOwnerRepoFromURL = (url: string) => {
@@ -63,65 +35,43 @@ const getOwnerRepoFromURL = (url: string) => {
   return [owner, repo]
 }
 
-const setCurrentGitInfo = async(wisp: WispInterface, addons: AddonURLToAddonMap) => {
-  const dirToAddon: {[dir: string]: InstalledAddon} = {}
-  for (const [_, addon] of Object.entries(addons)) {
-    const dirSpl = addon.path.split("/")
-    const dir = dirSpl[dirSpl.length - 1]
-
-    dirToAddon[dir] = addon
+/* Tells the server to build a new gitinfo */
+const buildCurrentGitInfo = async(wisp: WispInterface) => {
+  try {
+    // Tell the server to build the new gitinfo file (if it's up)
+    const uuid = (Math.random() + 1).toString(36).substring(7)
+    const nonce = `nanny-${uuid}`
+    const command = `nanny ${nonce} gitinfo`
+    await wisp.socket.sendCommandNonce(`${nonce}: `, command)
+    logger.info("Server has generated new git info - Reading the file now")
+  } catch(e) {
+    logger.error("Failed to generate current git info (Is the server down?) - Reading the file instead")
+    logger.error(e)
   }
-
-  const uuid = (Math.random() + 1).toString(36).substring(7)
-  const nonce = `nanny-${uuid}`
-  const command = `nanny ${nonce} gitinfo`
-  const response = await wisp.socket.sendCommandNonce(`${nonce}: `, command)
-
-  const gitInfo: AddonGitInfo[] = JSON.parse(response)
-
-  gitInfo.forEach((gitInfo) => {
-    const addon = dirToAddon[gitInfo.addon]
-    addon.branch = gitInfo.branch
-    addon.commit = gitInfo.commit
-  })
 }
 
-// TODO: Only track addons that are in the addons folder?
+/* Reads the current gitinfo file from the server's filesystem */
+const readCurrentGitInfo = async(wisp: WispInterface) => {
+  return await wisp.api.Filesystem.ReadFile("/garrysmod/data/cfc/nanny_gitinfo.json")
+}
+
+// TODO: Parse this file with zod or similar
 const getTrackedAddons = async (wisp: WispInterface) => {
-  const addonSearch = await wisp.socket.filesearch(`remote "origin"`)
-
   const installedAddons: {[key: string]: InstalledAddon} = {}
-  for (const [key, value] of Object.entries(addonSearch.files)) {
-    const path = convertFindKeyToPath(key)
-    const name = getNameFromPath(path)
 
-    // Getting the url from the config file
-    // "\turl = https://github.com/CFC-Servers/cfc_cl_http_whitelist.git"
-    let url = value.lines[7]
+  await buildCurrentGitInfo(wisp)
+  const infoFileContents = await readCurrentGitInfo(wisp)
+  const serverGitInfoFile: ServerGitInfoFile = JSON.parse(infoFileContents)
 
-    // "https://github.com/CFC-Servers/cfc_cl_http_whitelist.git"
-    url = url.split("= ")[1]
+  const generatedAt = serverGitInfoFile.generatedAt;
+  const currentTimestamp = Math.floor(new Date().getTime() / 1000)
+  logger.info(`Generated at: ${generatedAt}, Current Time: ${currentTimestamp} - Addon Data is ${currentTimestamp - generatedAt} seconds old`)
 
-    // "https://github.com/cfc-servers/cfc_cl_http_whitelist.git"
-    url = url.toLowerCase()
-
-    const [owner, repo] = getOwnerRepoFromURL(url)
-
-    const addon: InstalledAddon = {
-      path: path,
-      name: name,
-      url: url,
-      owner: owner,
-      repo: repo,
-      branch: "unknown",
-      commit: "unknown"
-    }
-
-    installedAddons[url] = addon
+  // Create the map
+  const serverInstalledAddons = serverGitInfoFile.installedAddons
+  for (const installedAddon of serverInstalledAddons) {
+    installedAddons[installedAddon.url] = installedAddon
   }
-
-  // Sets addon.commit and addon.branch
-  await setCurrentGitInfo(wisp, installedAddons)
 
   return installedAddons
 }
@@ -160,7 +110,7 @@ const cloneAddons = async (wisp: WispInterface, desiredAddons: DesiredAddon[]) =
     const url = `${addon.url}.git`
     const branch = addon.branch
 
-    console.log(`Cloning ${url} to /garrysmod/addons`)
+    logger.info(`Cloning ${url} to /garrysmod/addons`)
     return wisp.socket.gitClone(url, "/garrysmod/addons", branch)
   });
 
@@ -228,7 +178,7 @@ const updateAddon = async (wisp: WispInterface, addon: InstalledAddon) => {
   let pullResult
   try {
     pullResult = await wisp.socket.gitPull(addon.path)
-    console.log("Got pull result:", pullResult)
+    logger.info("Got pull result:", pullResult)
   } catch (e: any) {
     let errorMessage = "Unknown Error"
     if (typeof e === "string") {
@@ -237,24 +187,24 @@ const updateAddon = async (wisp: WispInterface, addon: InstalledAddon) => {
       errorMessage = e.toString()
     }
 
-    console.log("Full error message on pull:", `${errorMessage}'`)
+    logger.info("Full error message on pull:", `${errorMessage}'`)
 
     const isPrimaryBranch = addon.branch == "main" || addon.branch == "master"
     const canReclone = errorsTriggeringReclone[errorMessage]
 
     if (canReclone) {
         if (isPrimaryBranch) {
-            console.log( `'${errorMessage}' on primary branch pull. Ignoring in case it's temporary.`, addon.path, addon.branch )
+            logger.info( `'${errorMessage}' on primary branch pull. Ignoring in case it's temporary.`, addon.path, addon.branch )
             throw(e)
         } else {
-            console.log( `'${errorMessage}' on nonstandared branch pull - deleting and recloning`, addon.path )
+            logger.info( `'${errorMessage}' on nonstandared branch pull - deleting and recloning`, addon.path )
 
             // Delete and reclone
             await wisp.api.Filesystem.DeleteFiles([addon.path])
             await wisp.socket.gitClone(addon.url, "/garrysmod/addons", addon.branch)
 
             if (addon.name !== addon.repo) {
-                console.log(`Recloned a broken repo that has a custom name: ${addon.url} wants to be at ${addon.name}`)
+                logger.info(`Recloned a broken repo that has a custom name: ${addon.url} wants to be at ${addon.name}`)
                 await wisp.api.Filesystem.RenameFile(`/garrysmod/addons/${addon.repo}`, `/garrysmod/addons/${addon.name}`)
             }
 
@@ -283,7 +233,7 @@ const processControlFile = async (controlFile: string, toClone: DesiredAddon[], 
   
     // If we don't have it, get it
     if (!installedAddon) {
-      console.log(`Desired Addon does not appear in Installed list: ${installedURL}`)
+      logger.info(`Desired Addon does not appear in Installed list: ${installedURL}`)
       toClone.push(desiredAddon)
       continue
     }
@@ -300,11 +250,11 @@ const processControlFile = async (controlFile: string, toClone: DesiredAddon[], 
       toUpdate.push(installedAddon)
     } else {
       if (!branchMatch) {
-          console.log(`Branch mismatch for ${installedAddon.path}: ${installedAddon.branch} != ${desiredAddon.branch}`)
+          logger.info(`Branch mismatch for ${installedAddon.path}: ${installedAddon.branch} != ${desiredAddon.branch}`)
       }
   
       if (!nameMatch) {
-          console.log(`Name mismatch for ${installedAddon.path}: ${installedAddon.name} != ${desiredAddon.name}`)
+          logger.info(`Name mismatch for ${installedAddon.path}: ${installedAddon.name} != ${desiredAddon.name}`)
       }
   
       toDelete.push(installedAddon)
@@ -317,7 +267,7 @@ const processControlFile = async (controlFile: string, toClone: DesiredAddon[], 
     const installedURL = url.replace(".git", "")
   
     if (!(installedURL in desiredAddons)) {
-      console.log(`Installed addon is missing from desired list: ${installedURL} not in desiredAddons`)
+      logger.info(`Installed addon is missing from desired list: ${installedURL} not in desiredAddons`)
       toDelete.push(installedAddon)
     }
   }
@@ -380,7 +330,7 @@ const handleCloneQueue = async (wisp: WispInterface, toClone: DesiredAddon[], al
 const handleUpdateQueue = async(wisp: WispInterface, ghPAT: string, toUpdate: InstalledAddon[], allChanges: ChangeMap, allFailures: FailureMap) => {
   const addonUpdates = toUpdate.map((addon) => updateAddon(wisp, addon))
   const results = await Promise.allSettled(addonUpdates)
-  console.log("Handled all updates in the queue")
+  logger.info("Handled all updates in the queue")
 
   for (const [index, result] of results.entries()) {
       if (result.status == "fulfilled") {
@@ -392,7 +342,7 @@ const handleUpdateQueue = async(wisp: WispInterface, ghPAT: string, toUpdate: In
 
           let change
 
-          console.log(`Checking for changes in ${addon.repo}, commit ${currentCommit} -> ${newCommit}`)
+          logger.info(`Checking for changes in ${addon.repo}, commit ${currentCommit} -> ${newCommit}`)
           if (currentCommit === newCommit) {
             logger.info(`No changes for ${addon.repo}`)
           } else {
@@ -445,10 +395,10 @@ const findBadBranches = (toUpdate: InstalledAddon[], remoteGitInfo: AddonRemoteG
 }
 
 async function manageAddons(wisp: any, serverName: string, ghPAT: string, alertWebhook: string, failureWebhook: string, controlFile?: string) {
-  console.log("Connected to Wisp - getting tracked addons")
+  logger.info("Connected to Wisp - getting tracked addons")
   const installedAddons = await getTrackedAddons(wisp)
 
-  console.log("Received addons. Getting Remote git info")
+  logger.info("Received addons. Getting Remote git info")
   const remoteGitInfo: AddonRemoteGitInfoMap = await getLatestCommitHashes(ghPAT, installedAddons)
 
   const toClone: DesiredAddon[] = []
@@ -456,10 +406,10 @@ async function manageAddons(wisp: any, serverName: string, ghPAT: string, alertW
   const toDelete: InstalledAddon[] = []
 
   if (controlFile) {
-    console.log("Control file provided - getting desired addons")
+    logger.info("Control file provided - getting desired addons")
     await processControlFile(controlFile, toClone, toUpdate, toDelete, installedAddons)
   } else {
-    console.log("No control file provided - updating all existing addons")
+    logger.info("No control file provided - updating all existing addons")
     for (const [_, installedAddon] of Object.entries(installedAddons)) {
       toUpdate.push(installedAddon)
     }
@@ -550,14 +500,15 @@ export async function ManageAddons(config: ManageAddonsConfig) {
 
   try {
     await manageAddons(wisp, serverName, ghPAT, alertWebhook, failureWebhook, controlFile)
-    console.log("manageAddons done, disconnecting from Wisp...")
+    await buildCurrentGitInfo(wisp) // Update the gitinfo file now that we're done
+    logger.info("manageAddons done, disconnecting from Wisp...")
     await wisp.disconnect()
-    console.log("Disconnected from Wisp - done!")
+    logger.info("Disconnected from Wisp - done!")
   } catch (e) {
     logger.error(e)
-    console.log("manageAddons errored, disconnecting from Wisp...")
+    logger.info("manageAddons errored, disconnecting from Wisp...")
     await wisp.disconnect()
-    console.log("Disconnected from Wisp - done!")
+    logger.info("Disconnected from Wisp - done!")
     throw e
   }
 }
