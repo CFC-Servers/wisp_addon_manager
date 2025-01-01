@@ -1,7 +1,8 @@
-import { createTwoFilesPatch } from "diff";
+import { createPatch } from "diff";
 import { sendServerConfigEmbed } from "./discord.js";
 const getDiff = (oldText, newText) => {
-    return createTwoFilesPatch("old.txt", "new.txt", oldText, newText);
+    const config = { ignoreWhitespace: true, stripTrailingCr: true };
+    return createPatch("server.cfg", oldText, newText, undefined, undefined, config);
 };
 const getCurrentServerConfig = async (wisp) => {
     return wisp.api.Filesystem.ReadFile("garrysmod/cfg/server.cfg");

@@ -69,7 +69,18 @@ import { ManageAddons } from "wisp_addon_manager";
   }
 
   try {
-    await ManageAddons(domain, uuid, serverName, token, ghPAT, alertWebhook, failureWebhook, controlFile);
+    const config = {
+      domain,
+      uuid,
+      serverName,
+      token,
+      ghPAT,
+      alertWebhook,
+      failureWebhook,
+      controlFile
+    };
+
+    await ManageAddons(config);
     console.log("Addon Manager completed successfully!");
   } catch (e) {
     console.error("Addon Manager did not complete successfully!");
