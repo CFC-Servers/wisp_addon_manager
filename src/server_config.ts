@@ -21,6 +21,9 @@ export const updateServerConfig = async (wisp: WispInterface, webhook: string, s
     const currentConfig = await getCurrentServerConfig(wisp)
     const diff = getDiff(currentConfig, config)
 
+    const lineLength = diff.split("\n").length
+    if (lineLength <= 3) return // Empty diff
+
     await updateServerConfigFile(wisp, config)
 
     return sendServerConfigEmbed(webhook, serverName, diff)
