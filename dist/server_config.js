@@ -1,5 +1,5 @@
 import { createTwoFilesPatch } from "diff";
-import { sendServerConfigEmbed } from "./discord";
+import { sendServerConfigEmbed } from "./discord.js";
 const getDiff = (oldText, newText) => {
     return createTwoFilesPatch("old.txt", "new.txt", oldText, newText);
 };

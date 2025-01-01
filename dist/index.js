@@ -1,8 +1,8 @@
 import YAML from "yaml";
 import { WispInterface } from "wispjs";
-import { generateUpdateWebhook, generateFailureWebhook } from "./discord";
-import { gitCommitDiff, getLatestCommitHashes } from "./github";
-import { updateServerConfig } from "./server_config";
+import { generateUpdateWebhook, generateFailureWebhook } from "./discord.js";
+import { gitCommitDiff, getLatestCommitHashes } from "./github.js";
+import { updateServerConfig } from "./server_config.js";
 const logger = {
     info: console.log,
     error: console.error
