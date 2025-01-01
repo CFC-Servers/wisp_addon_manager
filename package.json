@@ -1,9 +1,9 @@
 {
   "name": "wisp_addon_manager",
-  "version": "1.1.4",
+  "version": "1.2.0",
   "type": "module",
-  "main": "dist/index.js",
-  "types": "dist/index.d.ts",
+  "main": "dist/src/index.js",
+  "types": "dist/src/index.d.ts",
   "description": "Manages a Wisp-based Gmod server's addons",
   "scripts": {
     "start": "tsc && node dist/index.js",
@@ -21,12 +21,14 @@
   "homepage": "https://github.com/CFC-Servers/wisp_addon_manager#readme",
   "dependencies": {
     "@octokit/rest": "^20.0.1",
+    "diff": "^7.0.0",
     "socket.io-client": "^4.7.2",
     "typescript": "^5.1.6",
     "wispjs": "^2.3.6",
     "yaml": "^2.3.2"
   },
   "devDependencies": {
+    "@types/diff": "^6.0.0",
     "@types/node": "^20.5.1"
   }
 }

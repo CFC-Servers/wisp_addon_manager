@@ -1,15 +1,16 @@
 import YAML from "yaml"
 
 import { WispInterface } from "wispjs"
-import { generateUpdateWebhook, generateFailureWebhook } from "./discord.js"
-import { gitCommitDiff, getLatestCommitHashes } from "./github.js"
+import { generateUpdateWebhook, generateFailureWebhook } from "./discord"
+import { gitCommitDiff, getLatestCommitHashes } from "./github"
+import { updateServerConfig } from "./server_config"
 
-import type { CompareDTO } from "./github.js"
-import type { ChangeMap, FailureMap } from "./discord.js"
-import type { AddonRemoteGitInfoMap, AddonURLToAddonMap, DesiredAddon, InstalledAddon }  from "./index_types.js"
-import type { AddonDeleteInfo, AddonCreateInfo, AddonUpdateInfo  } from "./index_types.js"
-import type { AddonDeleteFailure, AddonCreateFailure, AddonUpdateFailure } from "./index_types.js"
-import type { ServerGitInfoFile } from "./index_types.js"
+import type { CompareDTO } from "./github"
+import type { ChangeMap, FailureMap } from "./discord"
+import type { AddonRemoteGitInfoMap, AddonURLToAddonMap, DesiredAddon, InstalledAddon }  from "./index_types"
+import type { AddonDeleteInfo, AddonCreateInfo, AddonUpdateInfo  } from "./index_types"
+import type { AddonDeleteFailure, AddonCreateFailure, AddonUpdateFailure } from "./index_types"
+import type { ServerGitInfoFile } from "./index_types"
 
 const logger = {
   info: console.log,
@@ -487,13 +488,15 @@ export type ManageAddonsConfig = {
   alertWebhook: string;
   failureWebhook: string;
   controlFile?: string;
+  serverConfig?: string;
 }
 
 export async function ManageAddons(config: ManageAddonsConfig) {
   const {
     domain, uuid, serverName,
     token, ghPAT, alertWebhook,
-    failureWebhook, controlFile
+    failureWebhook, controlFile,
+    serverConfig
   } = config
 
   const wisp = new WispInterface(domain, uuid, token, ghPAT)
@@ -501,6 +504,7 @@ export async function ManageAddons(config: ManageAddonsConfig) {
   try {
     await manageAddons(wisp, serverName, ghPAT, alertWebhook, failureWebhook, controlFile)
     await buildCurrentGitInfo(wisp) // Update the gitinfo file now that we're done
+    await updateServerConfig(wisp, failureWebhook, serverName, serverConfig)
     logger.info("manageAddons done, disconnecting from Wisp...")
     await wisp.disconnect()
     logger.info("Disconnected from Wisp - done!")

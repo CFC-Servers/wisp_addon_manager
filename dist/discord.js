@@ -3,7 +3,7 @@ const EMBED_COLORS = {
     delete: 0xFF4500,
     create: 0x32CD32,
 };
-const hiddenURL = "http://__";
+const hiddenURL = "https://github.com/404";
 const getLinkForAddon = (addon) => {
     const url = `${addon.url.replace(".git", "")}/tree/${addon.branch}`;
     return `[**${addon.name}**](${url})`;
@@ -11,9 +11,6 @@ const getLinkForAddon = (addon) => {
 const generateUpdateEmbed = (addonUpdate) => {
     const { addon, updateInfo, isPrivate } = addonUpdate;
     const maxMessageLength = 50;
-    if (isPrivate && updateInfo) {
-        updateInfo.url = hiddenURL;
-    }
     const embedTitle = `🚀 Updates for: **\`${addon.name}\`**`;
     const diffURL = updateInfo?.url;
     const commits = updateInfo?.commits || [];
@@ -92,7 +89,17 @@ const generateAddedEmbed = (addonUpdates) => {
     };
     return embed;
 };
-;
+const sendWebhook = async (webhook, embeds, content) => {
+    const body = JSON.stringify({ embeds: embeds, content: content });
+    const headers = new Headers({
+        "Content-Type": "application/json",
+    });
+    const response = await fetch(webhook, { method: "POST", body: body, headers: headers });
+    if (!response.ok) {
+        console.error("Failed to send webhook", response.statusText, response.status, await response.text());
+    }
+    return response.ok;
+};
 export const generateUpdateWebhook = async (addonUpdates, alertWebhook, serverName) => {
     const updates = [];
     addonUpdates.update.forEach(update => {
@@ -102,21 +109,13 @@ export const generateUpdateWebhook = async (addonUpdates, alertWebhook, serverNa
         });
     });
     // Function to send a webhook for a chunk of embeds
-    const sendWebhook = async (embeds) => {
+    const sendUpdate = async (embeds) => {
         if (!alertWebhook) {
             throw new Error("No webhook URL provided");
         }
         console.log("Sending webhook to:", alertWebhook);
         const content = `🔸 Addon Updates for: **\`${serverName}\`**`;
-        const body = JSON.stringify({ embeds: embeds, content: content });
-        const headers = new Headers({
-            "Content-Type": "application/json",
-        });
-        const response = await fetch(alertWebhook, { method: "POST", body: body, headers: headers });
-        if (!response.ok) {
-            console.error("Failed to send webhook", response.statusText, response.status, await response.text());
-        }
-        return response.ok;
+        return sendWebhook(alertWebhook, embeds, content);
     };
     // Send Additions
     const newAndDeleted = [];
@@ -130,14 +129,14 @@ export const generateUpdateWebhook = async (addonUpdates, alertWebhook, serverNa
         newAndDeleted.push({ ...deletes, color: EMBED_COLORS.delete });
     }
     if (newAndDeleted.length > 0) {
-        const success = await sendWebhook(newAndDeleted);
+        const success = await sendUpdate(newAndDeleted);
         if (!success) {
             console.error('Failed to send webhook for new and deleted addons:', newAndDeleted);
         }
     }
     for (let i = 0; i < updates.length; i += 10) {
         const chunk = updates.slice(i, i + 10);
-        const success = await sendWebhook(chunk);
+        const success = await sendUpdate(chunk);
         if (!success) {
             console.error('Failed to send webhook for chunk:', chunk);
         }
@@ -188,4 +187,13 @@ export const generateFailureWebhook = async (addonFailures, alertWebhook, server
         console.error("Failed to send webhook", response.statusText, response.status, await response.text());
     }
     return response.ok;
+};
+export const sendServerConfigEmbed = async (webhook, serverName, configDiff) => {
+    const embedTitle = `📜 Server Config Update: **\`${serverName}\`**`;
+    const embed = {
+        title: embedTitle,
+        description: "```diff\n" + configDiff + "```",
+        timestamp: new Date().toISOString(),
+    };
+    return sendWebhook(webhook, [embed], "");
 };

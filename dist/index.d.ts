@@ -7,5 +7,6 @@ export type ManageAddonsConfig = {
     alertWebhook: string;
     failureWebhook: string;
     controlFile?: string;
+    serverConfig?: string;
 };
 export declare function ManageAddons(config: ManageAddonsConfig): Promise<void>;
