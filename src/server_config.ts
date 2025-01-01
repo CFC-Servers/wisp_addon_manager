@@ -1,10 +1,10 @@
-import { createPatch } from "diff"
+import { createTwoFilesPatch } from "diff"
 import { sendServerConfigEmbed } from "./discord.js"
 import type { WispInterface } from "wispjs"
 
 const getDiff = (oldText: string, newText: string) => {
-  const config = { ignoreWhitespace: true, stripTrailingCr: true }
-  return createPatch("server.cfg", oldText, newText, undefined, undefined, config)
+  const options = { ignoreWhitespace: true, stripTrailingCr: true }
+  return createTwoFilesPatch("old.cfg", "new.cfg", oldText, newText, undefined, undefined, options)
 }
 
 const getCurrentServerConfig = async (wisp: WispInterface) => {
@@ -20,7 +20,6 @@ export const updateServerConfig = async (wisp: WispInterface, webhook: string, s
 
     const currentConfig = await getCurrentServerConfig(wisp)
     const diff = getDiff(currentConfig, config)
-    console.log("diff", diff)
 
     await updateServerConfigFile(wisp, config)
 

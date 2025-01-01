@@ -1,3 +1,5 @@
+const MAX_EMBEDS_PER_MESSAGE = 10;
+const MAX_DESCRIPTION_LENGTH = 4000;
 const EMBED_COLORS = {
     update: 0x1E90FF,
     delete: 0xFF4500,
@@ -188,12 +190,40 @@ export const generateFailureWebhook = async (addonFailures, alertWebhook, server
     }
     return response.ok;
 };
-export const sendServerConfigEmbed = async (webhook, serverName, configDiff) => {
-    const embedTitle = `📜 Server Config Update: **\`${serverName}\`**`;
-    const embed = {
-        title: embedTitle,
-        description: "```diff\n" + configDiff + "```",
+const splitConfigDiffIntoEmbeds = (serverName, configDiff) => {
+    const firstTitle = `📜 Server Config Update: **\`${serverName}\`**`;
+    const lines = configDiff.split('\n');
+    const embeds = [];
+    let currentDescription = "```diff\n";
+    let isFirstEmbed = true;
+    for (const line of lines) {
+        const lineWithNewline = line + '\n';
+        if ((currentDescription + lineWithNewline).length > MAX_DESCRIPTION_LENGTH - 3) {
+            currentDescription += "```";
+            embeds.push({
+                title: isFirstEmbed ? firstTitle : "cont.",
+                description: currentDescription,
+                timestamp: new Date().toISOString(),
+            });
+            currentDescription = "```diff\n" + lineWithNewline;
+            isFirstEmbed = false;
+        }
+        else {
+            currentDescription += lineWithNewline;
+        }
+    }
+    currentDescription += "```";
+    embeds.push({
+        title: isFirstEmbed ? firstTitle : "cont.",
+        description: currentDescription,
         timestamp: new Date().toISOString(),
-    };
-    return sendWebhook(webhook, [embed], "");
+    });
+    return embeds;
+};
+export const sendServerConfigEmbed = async (webhook, serverName, configDiff) => {
+    const embeds = splitConfigDiffIntoEmbeds(serverName, configDiff);
+    for (let i = 0; i < embeds.length; i += MAX_EMBEDS_PER_MESSAGE) {
+        const embedChunk = embeds.slice(i, i + MAX_EMBEDS_PER_MESSAGE);
+        await sendWebhook(webhook, embedChunk, "");
+    }
 };
