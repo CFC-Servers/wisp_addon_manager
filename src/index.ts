@@ -1,16 +1,16 @@
 import YAML from "yaml"
 
 import { WispInterface } from "wispjs"
-import { generateUpdateWebhook, generateFailureWebhook } from "./discord"
-import { gitCommitDiff, getLatestCommitHashes } from "./github"
-import { updateServerConfig } from "./server_config"
+import { generateUpdateWebhook, generateFailureWebhook } from "./discord.js"
+import { gitCommitDiff, getLatestCommitHashes } from "./github.js"
+import { updateServerConfig } from "./server_config.js"
 
-import type { CompareDTO } from "./github"
-import type { ChangeMap, FailureMap } from "./discord"
-import type { AddonRemoteGitInfoMap, AddonURLToAddonMap, DesiredAddon, InstalledAddon }  from "./index_types"
-import type { AddonDeleteInfo, AddonCreateInfo, AddonUpdateInfo  } from "./index_types"
-import type { AddonDeleteFailure, AddonCreateFailure, AddonUpdateFailure } from "./index_types"
-import type { ServerGitInfoFile } from "./index_types"
+import type { CompareDTO } from "./github.js"
+import type { ChangeMap, FailureMap } from "./discord.js"
+import type { AddonRemoteGitInfoMap, AddonURLToAddonMap, DesiredAddon, InstalledAddon }  from "./index_types.js"
+import type { AddonDeleteInfo, AddonCreateInfo, AddonUpdateInfo  } from "./index_types.js"
+import type { AddonDeleteFailure, AddonCreateFailure, AddonUpdateFailure } from "./index_types.js"
+import type { ServerGitInfoFile } from "./index_types.js"
 
 const logger = {
   info: console.log,

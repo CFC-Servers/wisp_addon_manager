@@ -1,5 +1,5 @@
 import { createTwoFilesPatch } from "diff"
-import { sendServerConfigEmbed } from "./discord"
+import { sendServerConfigEmbed } from "./discord.js"
 import type { WispInterface } from "wispjs"
 
 const getDiff = (oldText: string, newText: string) => {
