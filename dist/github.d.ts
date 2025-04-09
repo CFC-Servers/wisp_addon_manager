@@ -18,5 +18,6 @@ export interface CompareDTO {
     commits: CommitDTO[];
 }
 export declare const gitCommitDiff: (ghPAT: string, owner: string, repo: string, oldSHA: string, newSHA: string) => Promise<CompareDTO>;
+export declare const requestHashes: (ghPAT: string, addons: AddonURLToAddonMap) => Promise<AddonRemoteGitInfoMap>;
 export declare const getLatestCommitHashes: (ghPAT: string, addons: AddonURLToAddonMap) => Promise<AddonRemoteGitInfoMap>;
 export {};
