@@ -138,13 +138,16 @@ export const gitCommitDiff = async (ghPAT: string, owner: string, repo: string, 
   newSHA = newSHA.substring(0, 6)
 
   const basehead = `${oldSHA}...${newSHA}`
-  const path = `/repos/${owner}/${repo}/compare/${basehead}`
+  const path = "/repos/{owner}/{repo}/compare/{basehead}"
   console.log(`Getting diff between ${oldSHA} and ${newSHA} from ${repo} owned by ${owner}. Path: ${path}`)
 
   const content = await octokit.request(`GET ${path}`, {
     owner: owner,
     repo: repo,
     basehead: basehead,
+    headers: {
+      "X-GitHub-Api-Version": "2022-11-28"
+    }
   })
   console.log(`Got response from Github for ${owner}/${repo}`)
 
@@ -241,6 +244,9 @@ export const getLatestCommitHashes = async (ghPAT: string, addons: AddonURLToAdd
 
     let chunkNumber = 0;
     const totalChunks = chunks.length;
+
+    console.log(`Requesting hashes for ${Object.keys(addons).length} addons in ${chunks.length} chunks`);
+
     for (const chunk of chunks) {
       chunkNumber = chunkNumber + 1;
       console.log(`Processing chunk ${chunkNumber} of ${totalChunks}`);
