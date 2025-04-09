@@ -184,7 +184,7 @@ interface RepoCommitResponseItem {
   isPrivate: boolean;
 }
 
-export const getLatestCommitHashes = async (ghPAT: string, addons: AddonURLToAddonMap) => {
+export const requestHashes = async (ghPAT: string, addons: AddonURLToAddonMap) => {
   const octokit = new Octokit({ auth: ghPAT });
   const addonsList = Object.values(addons);
 
@@ -228,5 +228,27 @@ export const getLatestCommitHashes = async (ghPAT: string, addons: AddonURLToAdd
     console.error('Error fetching commit hashes:', error);
     throw error;
   }
+}
+
+export const getLatestCommitHashes = async (ghPAT: string, addons: AddonURLToAddonMap) => {
+    const fullResults: AddonRemoteGitInfoMap = {}
+    const chunkSize = 50;
+
+    const chunks: AddonURLToAddonMap[] = [];
+    for (let i = 0; i < Object.keys(addons).length; i += chunkSize) {
+      chunks.push(Object.fromEntries(Object.entries(addons).slice(i, i + chunkSize)));
+    }
+
+    let chunkNumber = 0;
+    const totalChunks = chunks.length;
+    for (const chunk of chunks) {
+      chunkNumber = chunkNumber + 1;
+      console.log(`Processing chunk ${chunkNumber} of ${totalChunks}`);
+
+      const result = await requestHashes(ghPAT, chunk);
+      Object.assign(fullResults, result);
+    }
+
+    return fullResults;
 }
 
