@@ -21,10 +21,12 @@ export const updateServerConfig = async (wisp: WispInterface, webhook: string, s
     const currentConfig = await getCurrentServerConfig(wisp)
     const diff = getDiff(currentConfig, config)
 
+    console.log("Diff:")
     const lines = diff.split("\n")
-    if (lines.at(-2)?.trim() == "--- old.cfg" && lines.at(-1)?.trim() == "+++ new.cfg") {
-        console.log("No changes detected in server.cfg")
-        return
+    let lineNumber = 0
+    for (const line of lines) {
+        lineNumber++
+        console.log(`Line ${lineNumber}.`, `"${line}"`)
     }
 
     await updateServerConfigFile(wisp, config)
