@@ -27828,7 +27828,7 @@ const buildCurrentGitInfo = async (wisp) => {
         const uuid = (Math.random() + 1).toString(36).substring(7);
         const nonce = `nanny-${uuid}`;
         const command = `nanny ${nonce} gitinfo`;
-        await wisp.socket.sendCommandNonce(`${nonce}: `, command, 3000);
+        await wisp.socket.sendCommandNonce(`${nonce}: `, command);
         logger.info("Server has generated new git info - Reading the file now");
     }
     catch (e) {
