@@ -21,13 +21,8 @@ export const updateServerConfig = async (wisp: WispInterface, webhook: string, s
     const currentConfig = await getCurrentServerConfig(wisp)
     const diff = getDiff(currentConfig, config)
 
-    console.log("Diff:")
-    const lines = diff.split("\n")
-    let lineNumber = 0
-    for (const line of lines) {
-        lineNumber++
-        console.log(`Line ${lineNumber}.`, `"${line}"`)
-    }
+    const lineLength = diff.split("\n").length
+    if (lineLength <= 4) return // Empty diff
 
     await updateServerConfigFile(wisp, config)
 
