@@ -43,7 +43,7 @@ const buildCurrentGitInfo = async(wisp: WispInterface) => {
     const uuid = (Math.random() + 1).toString(36).substring(7)
     const nonce = `nanny-${uuid}`
     const command = `nanny ${nonce} gitinfo`
-    await wisp.socket.sendCommandNonce(`${nonce}: `, command, 5000)
+    await wisp.socket.sendCommandNonce(`${nonce}: `, command, 3000)
     logger.info("Server has generated new git info - Reading the file now")
   } catch(e) {
     logger.error("Failed to generate current git info (Is the server down?) - Reading the file instead")
