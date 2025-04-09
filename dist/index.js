@@ -27789,9 +27789,11 @@ const updateServerConfig = async (wisp, webhook, serverName, config) => {
         return;
     const currentConfig = await getCurrentServerConfig(wisp);
     const diff = getDiff(currentConfig, config);
-    const lineLength = diff.split("\n").length;
-    if (lineLength <= 3)
-        return; // Empty diff
+    const lines = diff.split("\n");
+    if (lines.at(-2)?.trim() == "--- old.cfg" && lines.at(-1)?.trim() == "+++ new.cfg") {
+        console.log("No changes detected in server.cfg");
+        return;
+    }
     await updateServerConfigFile(wisp, config);
     return sendServerConfigEmbed(webhook, serverName, diff);
 };
