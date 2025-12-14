@@ -30,7 +30,10 @@ const generateUpdateEmbed = (addonUpdate: AddonUpdateInfo) => {
   const maxMessageLength = 50
 
   const embedTitle = `🚀 Updates for: **\`${addon.name}\`**`
-  const diffURL = updateInfo?.url
+  let diffURL = updateInfo?. url
+  if (isPrivate) {
+    diffURL = hiddenURL
+  }
 
   const commits = updateInfo?.commits || []
   const commitList: CommitDTO[] = commits.map((commit: CommitDTO) => {
