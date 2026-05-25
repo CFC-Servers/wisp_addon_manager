@@ -4070,852 +4070,6 @@ function removeHook(state, name, method) {
 
 /***/ }),
 
-/***/ 8026:
-/***/ ((module, exports, __nccwpck_require__) => {
-
-/* eslint-env browser */
-
-/**
- * This is the web browser implementation of `debug()`.
- */
-
-exports.formatArgs = formatArgs;
-exports.save = save;
-exports.load = load;
-exports.useColors = useColors;
-exports.storage = localstorage();
-exports.destroy = (() => {
-	let warned = false;
-
-	return () => {
-		if (!warned) {
-			warned = true;
-			console.warn('Instance method `debug.destroy()` is deprecated and no longer does anything. It will be removed in the next major version of `debug`.');
-		}
-	};
-})();
-
-/**
- * Colors.
- */
-
-exports.colors = [
-	'#0000CC',
-	'#0000FF',
-	'#0033CC',
-	'#0033FF',
-	'#0066CC',
-	'#0066FF',
-	'#0099CC',
-	'#0099FF',
-	'#00CC00',
-	'#00CC33',
-	'#00CC66',
-	'#00CC99',
-	'#00CCCC',
-	'#00CCFF',
-	'#3300CC',
-	'#3300FF',
-	'#3333CC',
-	'#3333FF',
-	'#3366CC',
-	'#3366FF',
-	'#3399CC',
-	'#3399FF',
-	'#33CC00',
-	'#33CC33',
-	'#33CC66',
-	'#33CC99',
-	'#33CCCC',
-	'#33CCFF',
-	'#6600CC',
-	'#6600FF',
-	'#6633CC',
-	'#6633FF',
-	'#66CC00',
-	'#66CC33',
-	'#9900CC',
-	'#9900FF',
-	'#9933CC',
-	'#9933FF',
-	'#99CC00',
-	'#99CC33',
-	'#CC0000',
-	'#CC0033',
-	'#CC0066',
-	'#CC0099',
-	'#CC00CC',
-	'#CC00FF',
-	'#CC3300',
-	'#CC3333',
-	'#CC3366',
-	'#CC3399',
-	'#CC33CC',
-	'#CC33FF',
-	'#CC6600',
-	'#CC6633',
-	'#CC9900',
-	'#CC9933',
-	'#CCCC00',
-	'#CCCC33',
-	'#FF0000',
-	'#FF0033',
-	'#FF0066',
-	'#FF0099',
-	'#FF00CC',
-	'#FF00FF',
-	'#FF3300',
-	'#FF3333',
-	'#FF3366',
-	'#FF3399',
-	'#FF33CC',
-	'#FF33FF',
-	'#FF6600',
-	'#FF6633',
-	'#FF9900',
-	'#FF9933',
-	'#FFCC00',
-	'#FFCC33'
-];
-
-/**
- * Currently only WebKit-based Web Inspectors, Firefox >= v31,
- * and the Firebug extension (any Firefox version) are known
- * to support "%c" CSS customizations.
- *
- * TODO: add a `localStorage` variable to explicitly enable/disable colors
- */
-
-// eslint-disable-next-line complexity
-function useColors() {
-	// NB: In an Electron preload script, document will be defined but not fully
-	// initialized. Since we know we're in Chrome, we'll just detect this case
-	// explicitly
-	if (typeof window !== 'undefined' && window.process && (window.process.type === 'renderer' || window.process.__nwjs)) {
-		return true;
-	}
-
-	// Internet Explorer and Edge do not support colors.
-	if (typeof navigator !== 'undefined' && navigator.userAgent && navigator.userAgent.toLowerCase().match(/(edge|trident)\/(\d+)/)) {
-		return false;
-	}
-
-	let m;
-
-	// Is webkit? http://stackoverflow.com/a/16459606/376773
-	// document is undefined in react-native: https://github.com/facebook/react-native/pull/1632
-	return (typeof document !== 'undefined' && document.documentElement && document.documentElement.style && document.documentElement.style.WebkitAppearance) ||
-		// Is firebug? http://stackoverflow.com/a/398120/376773
-		(typeof window !== 'undefined' && window.console && (window.console.firebug || (window.console.exception && window.console.table))) ||
-		// Is firefox >= v31?
-		// https://developer.mozilla.org/en-US/docs/Tools/Web_Console#Styling_messages
-		(typeof navigator !== 'undefined' && navigator.userAgent && (m = navigator.userAgent.toLowerCase().match(/firefox\/(\d+)/)) && parseInt(m[1], 10) >= 31) ||
-		// Double check webkit in userAgent just in case we are in a worker
-		(typeof navigator !== 'undefined' && navigator.userAgent && navigator.userAgent.toLowerCase().match(/applewebkit\/(\d+)/));
-}
-
-/**
- * Colorize log arguments if enabled.
- *
- * @api public
- */
-
-function formatArgs(args) {
-	args[0] = (this.useColors ? '%c' : '') +
-		this.namespace +
-		(this.useColors ? ' %c' : ' ') +
-		args[0] +
-		(this.useColors ? '%c ' : ' ') +
-		'+' + module.exports.humanize(this.diff);
-
-	if (!this.useColors) {
-		return;
-	}
-
-	const c = 'color: ' + this.color;
-	args.splice(1, 0, c, 'color: inherit');
-
-	// The final "%c" is somewhat tricky, because there could be other
-	// arguments passed either before or after the %c, so we need to
-	// figure out the correct index to insert the CSS into
-	let index = 0;
-	let lastC = 0;
-	args[0].replace(/%[a-zA-Z%]/g, match => {
-		if (match === '%%') {
-			return;
-		}
-		index++;
-		if (match === '%c') {
-			// We only are interested in the *last* %c
-			// (the user may have provided their own)
-			lastC = index;
-		}
-	});
-
-	args.splice(lastC, 0, c);
-}
-
-/**
- * Invokes `console.debug()` when available.
- * No-op when `console.debug` is not a "function".
- * If `console.debug` is not available, falls back
- * to `console.log`.
- *
- * @api public
- */
-exports.log = console.debug || console.log || (() => {});
-
-/**
- * Save `namespaces`.
- *
- * @param {String} namespaces
- * @api private
- */
-function save(namespaces) {
-	try {
-		if (namespaces) {
-			exports.storage.setItem('debug', namespaces);
-		} else {
-			exports.storage.removeItem('debug');
-		}
-	} catch (error) {
-		// Swallow
-		// XXX (@Qix-) should we be logging these?
-	}
-}
-
-/**
- * Load `namespaces`.
- *
- * @return {String} returns the previously persisted debug modes
- * @api private
- */
-function load() {
-	let r;
-	try {
-		r = exports.storage.getItem('debug');
-	} catch (error) {
-		// Swallow
-		// XXX (@Qix-) should we be logging these?
-	}
-
-	// If debug isn't set in LS, and we're in Electron, try to load $DEBUG
-	if (!r && typeof process !== 'undefined' && 'env' in process) {
-		r = process.env.DEBUG;
-	}
-
-	return r;
-}
-
-/**
- * Localstorage attempts to return the localstorage.
- *
- * This is necessary because safari throws
- * when a user disables cookies/localstorage
- * and you attempt to access it.
- *
- * @return {LocalStorage}
- * @api private
- */
-
-function localstorage() {
-	try {
-		// TVMLKit (Apple TV JS Runtime) does not have a window object, just localStorage in the global context
-		// The Browser also has localStorage in the global context.
-		return localStorage;
-	} catch (error) {
-		// Swallow
-		// XXX (@Qix-) should we be logging these?
-	}
-}
-
-module.exports = __nccwpck_require__(7308)(exports);
-
-const {formatters} = module.exports;
-
-/**
- * Map %j to `JSON.stringify()`, since no Web Inspectors do that by default.
- */
-
-formatters.j = function (v) {
-	try {
-		return JSON.stringify(v);
-	} catch (error) {
-		return '[UnexpectedJSONParseError]: ' + error.message;
-	}
-};
-
-
-/***/ }),
-
-/***/ 7308:
-/***/ ((module, __unused_webpack_exports, __nccwpck_require__) => {
-
-
-/**
- * This is the common logic for both the Node.js and web browser
- * implementations of `debug()`.
- */
-
-function setup(env) {
-	createDebug.debug = createDebug;
-	createDebug.default = createDebug;
-	createDebug.coerce = coerce;
-	createDebug.disable = disable;
-	createDebug.enable = enable;
-	createDebug.enabled = enabled;
-	createDebug.humanize = __nccwpck_require__(2216);
-	createDebug.destroy = destroy;
-
-	Object.keys(env).forEach(key => {
-		createDebug[key] = env[key];
-	});
-
-	/**
-	* The currently active debug mode names, and names to skip.
-	*/
-
-	createDebug.names = [];
-	createDebug.skips = [];
-
-	/**
-	* Map of special "%n" handling functions, for the debug "format" argument.
-	*
-	* Valid key names are a single, lower or upper-case letter, i.e. "n" and "N".
-	*/
-	createDebug.formatters = {};
-
-	/**
-	* Selects a color for a debug namespace
-	* @param {String} namespace The namespace string for the debug instance to be colored
-	* @return {Number|String} An ANSI color code for the given namespace
-	* @api private
-	*/
-	function selectColor(namespace) {
-		let hash = 0;
-
-		for (let i = 0; i < namespace.length; i++) {
-			hash = ((hash << 5) - hash) + namespace.charCodeAt(i);
-			hash |= 0; // Convert to 32bit integer
-		}
-
-		return createDebug.colors[Math.abs(hash) % createDebug.colors.length];
-	}
-	createDebug.selectColor = selectColor;
-
-	/**
-	* Create a debugger with the given `namespace`.
-	*
-	* @param {String} namespace
-	* @return {Function}
-	* @api public
-	*/
-	function createDebug(namespace) {
-		let prevTime;
-		let enableOverride = null;
-		let namespacesCache;
-		let enabledCache;
-
-		function debug(...args) {
-			// Disabled?
-			if (!debug.enabled) {
-				return;
-			}
-
-			const self = debug;
-
-			// Set `diff` timestamp
-			const curr = Number(new Date());
-			const ms = curr - (prevTime || curr);
-			self.diff = ms;
-			self.prev = prevTime;
-			self.curr = curr;
-			prevTime = curr;
-
-			args[0] = createDebug.coerce(args[0]);
-
-			if (typeof args[0] !== 'string') {
-				// Anything else let's inspect with %O
-				args.unshift('%O');
-			}
-
-			// Apply any `formatters` transformations
-			let index = 0;
-			args[0] = args[0].replace(/%([a-zA-Z%])/g, (match, format) => {
-				// If we encounter an escaped % then don't increase the array index
-				if (match === '%%') {
-					return '%';
-				}
-				index++;
-				const formatter = createDebug.formatters[format];
-				if (typeof formatter === 'function') {
-					const val = args[index];
-					match = formatter.call(self, val);
-
-					// Now we need to remove `args[index]` since it's inlined in the `format`
-					args.splice(index, 1);
-					index--;
-				}
-				return match;
-			});
-
-			// Apply env-specific formatting (colors, etc.)
-			createDebug.formatArgs.call(self, args);
-
-			const logFn = self.log || createDebug.log;
-			logFn.apply(self, args);
-		}
-
-		debug.namespace = namespace;
-		debug.useColors = createDebug.useColors();
-		debug.color = createDebug.selectColor(namespace);
-		debug.extend = extend;
-		debug.destroy = createDebug.destroy; // XXX Temporary. Will be removed in the next major release.
-
-		Object.defineProperty(debug, 'enabled', {
-			enumerable: true,
-			configurable: false,
-			get: () => {
-				if (enableOverride !== null) {
-					return enableOverride;
-				}
-				if (namespacesCache !== createDebug.namespaces) {
-					namespacesCache = createDebug.namespaces;
-					enabledCache = createDebug.enabled(namespace);
-				}
-
-				return enabledCache;
-			},
-			set: v => {
-				enableOverride = v;
-			}
-		});
-
-		// Env-specific initialization logic for debug instances
-		if (typeof createDebug.init === 'function') {
-			createDebug.init(debug);
-		}
-
-		return debug;
-	}
-
-	function extend(namespace, delimiter) {
-		const newDebug = createDebug(this.namespace + (typeof delimiter === 'undefined' ? ':' : delimiter) + namespace);
-		newDebug.log = this.log;
-		return newDebug;
-	}
-
-	/**
-	* Enables a debug mode by namespaces. This can include modes
-	* separated by a colon and wildcards.
-	*
-	* @param {String} namespaces
-	* @api public
-	*/
-	function enable(namespaces) {
-		createDebug.save(namespaces);
-		createDebug.namespaces = namespaces;
-
-		createDebug.names = [];
-		createDebug.skips = [];
-
-		let i;
-		const split = (typeof namespaces === 'string' ? namespaces : '').split(/[\s,]+/);
-		const len = split.length;
-
-		for (i = 0; i < len; i++) {
-			if (!split[i]) {
-				// ignore empty strings
-				continue;
-			}
-
-			namespaces = split[i].replace(/\*/g, '.*?');
-
-			if (namespaces[0] === '-') {
-				createDebug.skips.push(new RegExp('^' + namespaces.slice(1) + '$'));
-			} else {
-				createDebug.names.push(new RegExp('^' + namespaces + '$'));
-			}
-		}
-	}
-
-	/**
-	* Disable debug output.
-	*
-	* @return {String} namespaces
-	* @api public
-	*/
-	function disable() {
-		const namespaces = [
-			...createDebug.names.map(toNamespace),
-			...createDebug.skips.map(toNamespace).map(namespace => '-' + namespace)
-		].join(',');
-		createDebug.enable('');
-		return namespaces;
-	}
-
-	/**
-	* Returns true if the given mode name is enabled, false otherwise.
-	*
-	* @param {String} name
-	* @return {Boolean}
-	* @api public
-	*/
-	function enabled(name) {
-		if (name[name.length - 1] === '*') {
-			return true;
-		}
-
-		let i;
-		let len;
-
-		for (i = 0, len = createDebug.skips.length; i < len; i++) {
-			if (createDebug.skips[i].test(name)) {
-				return false;
-			}
-		}
-
-		for (i = 0, len = createDebug.names.length; i < len; i++) {
-			if (createDebug.names[i].test(name)) {
-				return true;
-			}
-		}
-
-		return false;
-	}
-
-	/**
-	* Convert regexp to namespace
-	*
-	* @param {RegExp} regxep
-	* @return {String} namespace
-	* @api private
-	*/
-	function toNamespace(regexp) {
-		return regexp.toString()
-			.substring(2, regexp.toString().length - 2)
-			.replace(/\.\*\?$/, '*');
-	}
-
-	/**
-	* Coerce `val`.
-	*
-	* @param {Mixed} val
-	* @return {Mixed}
-	* @api private
-	*/
-	function coerce(val) {
-		if (val instanceof Error) {
-			return val.stack || val.message;
-		}
-		return val;
-	}
-
-	/**
-	* XXX DO NOT USE. This is a temporary stub function.
-	* XXX It WILL be removed in the next major release.
-	*/
-	function destroy() {
-		console.warn('Instance method `debug.destroy()` is deprecated and no longer does anything. It will be removed in the next major version of `debug`.');
-	}
-
-	createDebug.enable(createDebug.load());
-
-	return createDebug;
-}
-
-module.exports = setup;
-
-
-/***/ }),
-
-/***/ 9046:
-/***/ ((module, __unused_webpack_exports, __nccwpck_require__) => {
-
-/**
- * Detect Electron renderer / nwjs process, which is node, but we should
- * treat as a browser.
- */
-
-if (typeof process === 'undefined' || process.type === 'renderer' || process.browser === true || process.__nwjs) {
-	module.exports = __nccwpck_require__(8026);
-} else {
-	module.exports = __nccwpck_require__(3531);
-}
-
-
-/***/ }),
-
-/***/ 3531:
-/***/ ((module, exports, __nccwpck_require__) => {
-
-/**
- * Module dependencies.
- */
-
-const tty = __nccwpck_require__(6224);
-const util = __nccwpck_require__(3837);
-
-/**
- * This is the Node.js implementation of `debug()`.
- */
-
-exports.init = init;
-exports.log = log;
-exports.formatArgs = formatArgs;
-exports.save = save;
-exports.load = load;
-exports.useColors = useColors;
-exports.destroy = util.deprecate(
-	() => {},
-	'Instance method `debug.destroy()` is deprecated and no longer does anything. It will be removed in the next major version of `debug`.'
-);
-
-/**
- * Colors.
- */
-
-exports.colors = [6, 2, 3, 4, 5, 1];
-
-try {
-	// Optional dependency (as in, doesn't need to be installed, NOT like optionalDependencies in package.json)
-	// eslint-disable-next-line import/no-extraneous-dependencies
-	const supportsColor = __nccwpck_require__(7365);
-
-	if (supportsColor && (supportsColor.stderr || supportsColor).level >= 2) {
-		exports.colors = [
-			20,
-			21,
-			26,
-			27,
-			32,
-			33,
-			38,
-			39,
-			40,
-			41,
-			42,
-			43,
-			44,
-			45,
-			56,
-			57,
-			62,
-			63,
-			68,
-			69,
-			74,
-			75,
-			76,
-			77,
-			78,
-			79,
-			80,
-			81,
-			92,
-			93,
-			98,
-			99,
-			112,
-			113,
-			128,
-			129,
-			134,
-			135,
-			148,
-			149,
-			160,
-			161,
-			162,
-			163,
-			164,
-			165,
-			166,
-			167,
-			168,
-			169,
-			170,
-			171,
-			172,
-			173,
-			178,
-			179,
-			184,
-			185,
-			196,
-			197,
-			198,
-			199,
-			200,
-			201,
-			202,
-			203,
-			204,
-			205,
-			206,
-			207,
-			208,
-			209,
-			214,
-			215,
-			220,
-			221
-		];
-	}
-} catch (error) {
-	// Swallow - we only care if `supports-color` is available; it doesn't have to be.
-}
-
-/**
- * Build up the default `inspectOpts` object from the environment variables.
- *
- *   $ DEBUG_COLORS=no DEBUG_DEPTH=10 DEBUG_SHOW_HIDDEN=enabled node script.js
- */
-
-exports.inspectOpts = Object.keys(process.env).filter(key => {
-	return /^debug_/i.test(key);
-}).reduce((obj, key) => {
-	// Camel-case
-	const prop = key
-		.substring(6)
-		.toLowerCase()
-		.replace(/_([a-z])/g, (_, k) => {
-			return k.toUpperCase();
-		});
-
-	// Coerce string value into JS value
-	let val = process.env[key];
-	if (/^(yes|on|true|enabled)$/i.test(val)) {
-		val = true;
-	} else if (/^(no|off|false|disabled)$/i.test(val)) {
-		val = false;
-	} else if (val === 'null') {
-		val = null;
-	} else {
-		val = Number(val);
-	}
-
-	obj[prop] = val;
-	return obj;
-}, {});
-
-/**
- * Is stdout a TTY? Colored output is enabled when `true`.
- */
-
-function useColors() {
-	return 'colors' in exports.inspectOpts ?
-		Boolean(exports.inspectOpts.colors) :
-		tty.isatty(process.stderr.fd);
-}
-
-/**
- * Adds ANSI color escape codes if enabled.
- *
- * @api public
- */
-
-function formatArgs(args) {
-	const {namespace: name, useColors} = this;
-
-	if (useColors) {
-		const c = this.color;
-		const colorCode = '\u001B[3' + (c < 8 ? c : '8;5;' + c);
-		const prefix = `  ${colorCode};1m${name} \u001B[0m`;
-
-		args[0] = prefix + args[0].split('\n').join('\n' + prefix);
-		args.push(colorCode + 'm+' + module.exports.humanize(this.diff) + '\u001B[0m');
-	} else {
-		args[0] = getDate() + name + ' ' + args[0];
-	}
-}
-
-function getDate() {
-	if (exports.inspectOpts.hideDate) {
-		return '';
-	}
-	return new Date().toISOString() + ' ';
-}
-
-/**
- * Invokes `util.formatWithOptions()` with the specified arguments and writes to stderr.
- */
-
-function log(...args) {
-	return process.stderr.write(util.formatWithOptions(exports.inspectOpts, ...args) + '\n');
-}
-
-/**
- * Save `namespaces`.
- *
- * @param {String} namespaces
- * @api private
- */
-function save(namespaces) {
-	if (namespaces) {
-		process.env.DEBUG = namespaces;
-	} else {
-		// If you set a process.env field to null or undefined, it gets cast to the
-		// string 'null' or 'undefined'. Just delete instead.
-		delete process.env.DEBUG;
-	}
-}
-
-/**
- * Load `namespaces`.
- *
- * @return {String} returns the previously persisted debug modes
- * @api private
- */
-
-function load() {
-	return process.env.DEBUG;
-}
-
-/**
- * Init logic for `debug` instances.
- *
- * Create a new `inspectOpts` object in case `useColors` is set
- * differently for a particular `debug` instance.
- */
-
-function init(debug) {
-	debug.inspectOpts = {};
-
-	const keys = Object.keys(exports.inspectOpts);
-	for (let i = 0; i < keys.length; i++) {
-		debug.inspectOpts[keys[i]] = exports.inspectOpts[keys[i]];
-	}
-}
-
-module.exports = __nccwpck_require__(7308)(exports);
-
-const {formatters} = module.exports;
-
-/**
- * Map %o to `util.inspect()`, all on a single line.
- */
-
-formatters.o = function (v) {
-	this.inspectOpts.colors = this.useColors;
-	return util.inspect(v, this.inspectOpts)
-		.split('\n')
-		.map(str => str.trim())
-		.join(' ');
-};
-
-/**
- * Map %O to `util.inspect()`, allowing multiple lines if needed.
- */
-
-formatters.O = function (v) {
-	this.inspectOpts.colors = this.useColors;
-	return util.inspect(v, this.inspectOpts);
-};
-
-
-/***/ }),
-
 /***/ 788:
 /***/ ((__unused_webpack_module, exports) => {
 
@@ -4939,175 +4093,6 @@ class Deprecation extends Error {
 }
 
 exports.Deprecation = Deprecation;
-
-
-/***/ }),
-
-/***/ 2216:
-/***/ ((module) => {
-
-/**
- * Helpers.
- */
-
-var s = 1000;
-var m = s * 60;
-var h = m * 60;
-var d = h * 24;
-var w = d * 7;
-var y = d * 365.25;
-
-/**
- * Parse or format the given `val`.
- *
- * Options:
- *
- *  - `long` verbose formatting [false]
- *
- * @param {String|Number} val
- * @param {Object} [options]
- * @throws {Error} throw an error if val is not a non-empty string or a number
- * @return {String|Number}
- * @api public
- */
-
-module.exports = function (val, options) {
-  options = options || {};
-  var type = typeof val;
-  if (type === 'string' && val.length > 0) {
-    return parse(val);
-  } else if (type === 'number' && isFinite(val)) {
-    return options.long ? fmtLong(val) : fmtShort(val);
-  }
-  throw new Error(
-    'val is not a non-empty string or a valid number. val=' +
-      JSON.stringify(val)
-  );
-};
-
-/**
- * Parse the given `str` and return milliseconds.
- *
- * @param {String} str
- * @return {Number}
- * @api private
- */
-
-function parse(str) {
-  str = String(str);
-  if (str.length > 100) {
-    return;
-  }
-  var match = /^(-?(?:\d+)?\.?\d+) *(milliseconds?|msecs?|ms|seconds?|secs?|s|minutes?|mins?|m|hours?|hrs?|h|days?|d|weeks?|w|years?|yrs?|y)?$/i.exec(
-    str
-  );
-  if (!match) {
-    return;
-  }
-  var n = parseFloat(match[1]);
-  var type = (match[2] || 'ms').toLowerCase();
-  switch (type) {
-    case 'years':
-    case 'year':
-    case 'yrs':
-    case 'yr':
-    case 'y':
-      return n * y;
-    case 'weeks':
-    case 'week':
-    case 'w':
-      return n * w;
-    case 'days':
-    case 'day':
-    case 'd':
-      return n * d;
-    case 'hours':
-    case 'hour':
-    case 'hrs':
-    case 'hr':
-    case 'h':
-      return n * h;
-    case 'minutes':
-    case 'minute':
-    case 'mins':
-    case 'min':
-    case 'm':
-      return n * m;
-    case 'seconds':
-    case 'second':
-    case 'secs':
-    case 'sec':
-    case 's':
-      return n * s;
-    case 'milliseconds':
-    case 'millisecond':
-    case 'msecs':
-    case 'msec':
-    case 'ms':
-      return n;
-    default:
-      return undefined;
-  }
-}
-
-/**
- * Short format for `ms`.
- *
- * @param {Number} ms
- * @return {String}
- * @api private
- */
-
-function fmtShort(ms) {
-  var msAbs = Math.abs(ms);
-  if (msAbs >= d) {
-    return Math.round(ms / d) + 'd';
-  }
-  if (msAbs >= h) {
-    return Math.round(ms / h) + 'h';
-  }
-  if (msAbs >= m) {
-    return Math.round(ms / m) + 'm';
-  }
-  if (msAbs >= s) {
-    return Math.round(ms / s) + 's';
-  }
-  return ms + 'ms';
-}
-
-/**
- * Long format for `ms`.
- *
- * @param {Number} ms
- * @return {String}
- * @api private
- */
-
-function fmtLong(ms) {
-  var msAbs = Math.abs(ms);
-  if (msAbs >= d) {
-    return plural(ms, msAbs, d, 'day');
-  }
-  if (msAbs >= h) {
-    return plural(ms, msAbs, h, 'hour');
-  }
-  if (msAbs >= m) {
-    return plural(ms, msAbs, m, 'minute');
-  }
-  if (msAbs >= s) {
-    return plural(ms, msAbs, s, 'second');
-  }
-  return ms + ' ms';
-}
-
-/**
- * Pluralization helper.
- */
-
-function plural(ms, msAbs, n, name) {
-  var isPlural = msAbs >= n * 1.5;
-  return Math.round(ms / n) + ' ' + name + (isPlural ? 's' : '');
-}
 
 
 /***/ }),
@@ -5226,12 +4211,12 @@ function wrappy (fn, cb) {
 
 /***/ }),
 
-/***/ 5696:
+/***/ 7171:
 /***/ ((module, __unused_webpack_exports, __nccwpck_require__) => {
 
 
 
-const { EMPTY_BUFFER } = __nccwpck_require__(3481);
+const { EMPTY_BUFFER } = __nccwpck_require__(2810);
 
 const FastBuffer = Buffer[Symbol.species];
 
@@ -5364,15 +4349,22 @@ if (!process.env.WS_NO_BUFFER_UTIL) {
 
 /***/ }),
 
-/***/ 3481:
+/***/ 2810:
 /***/ ((module) => {
 
 
 
+const BINARY_TYPES = ['nodebuffer', 'arraybuffer', 'fragments'];
+const hasBlob = typeof Blob !== 'undefined';
+
+if (hasBlob) BINARY_TYPES.push('blob');
+
 module.exports = {
-  BINARY_TYPES: ['nodebuffer', 'arraybuffer', 'fragments'],
+  BINARY_TYPES,
+  CLOSE_TIMEOUT: 30000,
   EMPTY_BUFFER: Buffer.alloc(0),
   GUID: '258EAFA5-E914-47DA-95CA-C5AB0DC85B11',
+  hasBlob,
   kForOnEventAttribute: Symbol('kIsForOnEventAttribute'),
   kListener: Symbol('kListener'),
   kStatusCode: Symbol('status-code'),
@@ -5383,12 +4375,12 @@ module.exports = {
 
 /***/ }),
 
-/***/ 1340:
+/***/ 166:
 /***/ ((module, __unused_webpack_exports, __nccwpck_require__) => {
 
 
 
-const { kForOnEventAttribute, kListener } = __nccwpck_require__(3481);
+const { kForOnEventAttribute, kListener } = __nccwpck_require__(2810);
 
 const kCode = Symbol('kCode');
 const kData = Symbol('kData');
@@ -5682,12 +4674,12 @@ function callListener(listener, thisArg, event) {
 
 /***/ }),
 
-/***/ 9225:
+/***/ 9286:
 /***/ ((module, __unused_webpack_exports, __nccwpck_require__) => {
 
 
 
-const { tokenChars } = __nccwpck_require__(2291);
+const { tokenChars } = __nccwpck_require__(6219);
 
 /**
  * Adds an offer to the map of extension offers or a parameter to the map of
@@ -5892,7 +4884,7 @@ module.exports = { format, parse };
 
 /***/ }),
 
-/***/ 1833:
+/***/ 7884:
 /***/ ((module) => {
 
 
@@ -5954,16 +4946,16 @@ module.exports = Limiter;
 
 /***/ }),
 
-/***/ 1549:
+/***/ 2959:
 /***/ ((module, __unused_webpack_exports, __nccwpck_require__) => {
 
 
 
 const zlib = __nccwpck_require__(9796);
 
-const bufferUtil = __nccwpck_require__(5696);
-const Limiter = __nccwpck_require__(1833);
-const { kStatusCode } = __nccwpck_require__(3481);
+const bufferUtil = __nccwpck_require__(7171);
+const Limiter = __nccwpck_require__(7884);
+const { kStatusCode } = __nccwpck_require__(2810);
 
 const FastBuffer = Buffer[Symbol.species];
 const TRAILER = Buffer.from([0x00, 0x00, 0xff, 0xff]);
@@ -5996,6 +4988,9 @@ class PerMessageDeflate {
    *     acknowledge disabling of client context takeover
    * @param {Number} [options.concurrencyLimit=10] The number of concurrent
    *     calls to zlib
+   * @param {Boolean} [options.isServer=false] Create the instance in either
+   *     server or client mode
+   * @param {Number} [options.maxPayload=0] The maximum allowed message length
    * @param {(Boolean|Number)} [options.serverMaxWindowBits] Request/confirm the
    *     use of a custom server window size
    * @param {Boolean} [options.serverNoContextTakeover=false] Request/accept
@@ -6006,16 +5001,13 @@ class PerMessageDeflate {
    *     deflate
    * @param {Object} [options.zlibInflateOptions] Options to pass to zlib on
    *     inflate
-   * @param {Boolean} [isServer=false] Create the instance in either server or
-   *     client mode
-   * @param {Number} [maxPayload=0] The maximum allowed message length
    */
-  constructor(options, isServer, maxPayload) {
-    this._maxPayload = maxPayload | 0;
+  constructor(options) {
     this._options = options || {};
     this._threshold =
       this._options.threshold !== undefined ? this._options.threshold : 1024;
-    this._isServer = !!isServer;
+    this._maxPayload = this._options.maxPayload | 0;
+    this._isServer = !!this._options.isServer;
     this._deflate = null;
     this._inflate = null;
 
@@ -6453,6 +5445,14 @@ function inflateOnData(chunk) {
   this[kError].code = 'WS_ERR_UNSUPPORTED_MESSAGE_LENGTH';
   this[kError][kStatusCode] = 1009;
   this.removeListener('data', inflateOnData);
+
+  //
+  // The choice to employ `zlib.reset()` over `zlib.close()` is dictated by the
+  // fact that in Node.js versions prior to 13.10.0, the callback for
+  // `zlib.flush()` is not called if `zlib.close()` is used. Utilizing
+  // `zlib.reset()` ensures that either the callback is invoked or an error is
+  // emitted.
+  //
   this.reset();
 }
 
@@ -6468,6 +5468,12 @@ function inflateOnError(err) {
   // closed when an error is emitted.
   //
   this[kPerMessageDeflate]._inflate = null;
+
+  if (this[kError]) {
+    this[kCallback](this[kError]);
+    return;
+  }
+
   err[kStatusCode] = 1007;
   this[kCallback](err);
 }
@@ -6475,22 +5481,22 @@ function inflateOnError(err) {
 
 /***/ }),
 
-/***/ 3558:
+/***/ 2123:
 /***/ ((module, __unused_webpack_exports, __nccwpck_require__) => {
 
 
 
 const { Writable } = __nccwpck_require__(2781);
 
-const PerMessageDeflate = __nccwpck_require__(1549);
+const PerMessageDeflate = __nccwpck_require__(2959);
 const {
   BINARY_TYPES,
   EMPTY_BUFFER,
   kStatusCode,
   kWebSocket
-} = __nccwpck_require__(3481);
-const { concat, toArrayBuffer, unmask } = __nccwpck_require__(5696);
-const { isValidStatusCode, isValidUTF8 } = __nccwpck_require__(2291);
+} = __nccwpck_require__(2810);
+const { concat, toArrayBuffer, unmask } = __nccwpck_require__(7171);
+const { isValidStatusCode, isValidUTF8 } = __nccwpck_require__(6219);
 
 const FastBuffer = Buffer[Symbol.species];
 
@@ -6520,6 +5526,10 @@ class Receiver extends Writable {
    *     extensions
    * @param {Boolean} [options.isServer=false] Specifies whether to operate in
    *     client or server mode
+   * @param {Number} [options.maxBufferedChunks=0] The maximum number of
+   *     buffered data chunks
+   * @param {Number} [options.maxFragments=0] The maximum number of message
+   *     fragments
    * @param {Number} [options.maxPayload=0] The maximum allowed message length
    * @param {Boolean} [options.skipUTF8Validation=false] Specifies whether or
    *     not to skip UTF-8 validation for text and close messages
@@ -6534,6 +5544,8 @@ class Receiver extends Writable {
     this._binaryType = options.binaryType || BINARY_TYPES[0];
     this._extensions = options.extensions || {};
     this._isServer = !!options.isServer;
+    this._maxBufferedChunks = options.maxBufferedChunks | 0;
+    this._maxFragments = options.maxFragments | 0;
     this._maxPayload = options.maxPayload | 0;
     this._skipUTF8Validation = !!options.skipUTF8Validation;
     this[kWebSocket] = undefined;
@@ -6568,6 +5580,22 @@ class Receiver extends Writable {
    */
   _write(chunk, encoding, cb) {
     if (this._opcode === 0x08 && this._state == GET_INFO) return cb();
+
+    if (
+      this._maxBufferedChunks > 0 &&
+      this._buffers.length >= this._maxBufferedChunks
+    ) {
+      cb(
+        this.createError(
+          RangeError,
+          'Too many buffered chunks',
+          false,
+          1008,
+          'WS_ERR_TOO_MANY_BUFFERED_PARTS'
+        )
+      );
+      return;
+    }
 
     this._bufferedBytes += chunk.length;
     this._buffers.push(chunk);
@@ -6965,6 +5993,22 @@ class Receiver extends Writable {
     }
 
     if (data.length) {
+      if (
+        this._maxFragments > 0 &&
+        this._fragments.length >= this._maxFragments
+      ) {
+        const error = this.createError(
+          RangeError,
+          'Too many message fragments',
+          false,
+          1008,
+          'WS_ERR_TOO_MANY_BUFFERED_PARTS'
+        );
+
+        cb(error);
+        return;
+      }
+
       //
       // This message is not compressed so its length is the sum of the payload
       // length of all fragments.
@@ -6998,6 +6042,22 @@ class Receiver extends Writable {
             false,
             1009,
             'WS_ERR_UNSUPPORTED_MESSAGE_LENGTH'
+          );
+
+          cb(error);
+          return;
+        }
+
+        if (
+          this._maxFragments > 0 &&
+          this._fragments.length >= this._maxFragments
+        ) {
+          const error = this.createError(
+            RangeError,
+            'Too many message fragments',
+            false,
+            1008,
+            'WS_ERR_TOO_MANY_BUFFERED_PARTS'
           );
 
           cb(error);
@@ -7039,6 +6099,8 @@ class Receiver extends Writable {
         data = concat(fragments, messageLength);
       } else if (this._binaryType === 'arraybuffer') {
         data = toArrayBuffer(concat(fragments, messageLength));
+      } else if (this._binaryType === 'blob') {
+        data = new Blob(fragments);
       } else {
         data = fragments;
       }
@@ -7186,7 +6248,7 @@ module.exports = Receiver;
 
 /***/ }),
 
-/***/ 3016:
+/***/ 446:
 /***/ ((module, __unused_webpack_exports, __nccwpck_require__) => {
 
 /* eslint no-unused-vars: ["error", { "varsIgnorePattern": "^Duplex" }] */
@@ -7195,17 +6257,24 @@ module.exports = Receiver;
 
 const { Duplex } = __nccwpck_require__(2781);
 const { randomFillSync } = __nccwpck_require__(6113);
+const {
+  types: { isUint8Array }
+} = __nccwpck_require__(3837);
 
-const PerMessageDeflate = __nccwpck_require__(1549);
-const { EMPTY_BUFFER } = __nccwpck_require__(3481);
-const { isValidStatusCode } = __nccwpck_require__(2291);
-const { mask: applyMask, toBuffer } = __nccwpck_require__(5696);
+const PerMessageDeflate = __nccwpck_require__(2959);
+const { EMPTY_BUFFER, kWebSocket, NOOP } = __nccwpck_require__(2810);
+const { isBlob, isValidStatusCode } = __nccwpck_require__(6219);
+const { mask: applyMask, toBuffer } = __nccwpck_require__(7171);
 
 const kByteLength = Symbol('kByteLength');
 const maskBuffer = Buffer.alloc(4);
 const RANDOM_POOL_SIZE = 8 * 1024;
 let randomPool;
 let randomPoolPointer = RANDOM_POOL_SIZE;
+
+const DEFAULT = 0;
+const DEFLATING = 1;
+const GET_BLOB_DATA = 2;
 
 /**
  * HyBi Sender implementation.
@@ -7233,8 +6302,10 @@ class Sender {
     this._compress = false;
 
     this._bufferedBytes = 0;
-    this._deflating = false;
     this._queue = [];
+    this._state = DEFAULT;
+    this.onerror = NOOP;
+    this[kWebSocket] = undefined;
   }
 
   /**
@@ -7385,8 +6456,10 @@ class Sender {
 
       if (typeof data === 'string') {
         buf.write(data, 2);
-      } else {
+      } else if (isUint8Array(data)) {
         buf.set(data, 2);
+      } else {
+        throw new TypeError('Second argument must be a string or a Uint8Array');
       }
     }
 
@@ -7401,7 +6474,7 @@ class Sender {
       rsv1: false
     };
 
-    if (this._deflating) {
+    if (this._state !== DEFAULT) {
       this.enqueue([this.dispatch, buf, false, options, cb]);
     } else {
       this.sendFrame(Sender.frame(buf, options), cb);
@@ -7422,6 +6495,9 @@ class Sender {
 
     if (typeof data === 'string') {
       byteLength = Buffer.byteLength(data);
+      readOnly = false;
+    } else if (isBlob(data)) {
+      byteLength = data.size;
       readOnly = false;
     } else {
       data = toBuffer(data);
@@ -7444,7 +6520,13 @@ class Sender {
       rsv1: false
     };
 
-    if (this._deflating) {
+    if (isBlob(data)) {
+      if (this._state !== DEFAULT) {
+        this.enqueue([this.getBlobData, data, false, options, cb]);
+      } else {
+        this.getBlobData(data, false, options, cb);
+      }
+    } else if (this._state !== DEFAULT) {
       this.enqueue([this.dispatch, data, false, options, cb]);
     } else {
       this.sendFrame(Sender.frame(data, options), cb);
@@ -7465,6 +6547,9 @@ class Sender {
 
     if (typeof data === 'string') {
       byteLength = Buffer.byteLength(data);
+      readOnly = false;
+    } else if (isBlob(data)) {
+      byteLength = data.size;
       readOnly = false;
     } else {
       data = toBuffer(data);
@@ -7487,7 +6572,13 @@ class Sender {
       rsv1: false
     };
 
-    if (this._deflating) {
+    if (isBlob(data)) {
+      if (this._state !== DEFAULT) {
+        this.enqueue([this.getBlobData, data, false, options, cb]);
+      } else {
+        this.getBlobData(data, false, options, cb);
+      }
+    } else if (this._state !== DEFAULT) {
       this.enqueue([this.dispatch, data, false, options, cb]);
     } else {
       this.sendFrame(Sender.frame(data, options), cb);
@@ -7521,6 +6612,9 @@ class Sender {
     if (typeof data === 'string') {
       byteLength = Buffer.byteLength(data);
       readOnly = false;
+    } else if (isBlob(data)) {
+      byteLength = data.size;
+      readOnly = false;
     } else {
       data = toBuffer(data);
       byteLength = data.length;
@@ -7548,38 +6642,92 @@ class Sender {
 
     if (options.fin) this._firstFragment = true;
 
-    if (perMessageDeflate) {
-      const opts = {
-        [kByteLength]: byteLength,
-        fin: options.fin,
-        generateMask: this._generateMask,
-        mask: options.mask,
-        maskBuffer: this._maskBuffer,
-        opcode,
-        readOnly,
-        rsv1
-      };
+    const opts = {
+      [kByteLength]: byteLength,
+      fin: options.fin,
+      generateMask: this._generateMask,
+      mask: options.mask,
+      maskBuffer: this._maskBuffer,
+      opcode,
+      readOnly,
+      rsv1
+    };
 
-      if (this._deflating) {
-        this.enqueue([this.dispatch, data, this._compress, opts, cb]);
+    if (isBlob(data)) {
+      if (this._state !== DEFAULT) {
+        this.enqueue([this.getBlobData, data, this._compress, opts, cb]);
       } else {
-        this.dispatch(data, this._compress, opts, cb);
+        this.getBlobData(data, this._compress, opts, cb);
       }
+    } else if (this._state !== DEFAULT) {
+      this.enqueue([this.dispatch, data, this._compress, opts, cb]);
     } else {
-      this.sendFrame(
-        Sender.frame(data, {
-          [kByteLength]: byteLength,
-          fin: options.fin,
-          generateMask: this._generateMask,
-          mask: options.mask,
-          maskBuffer: this._maskBuffer,
-          opcode,
-          readOnly,
-          rsv1: false
-        }),
-        cb
-      );
+      this.dispatch(data, this._compress, opts, cb);
     }
+  }
+
+  /**
+   * Gets the contents of a blob as binary data.
+   *
+   * @param {Blob} blob The blob
+   * @param {Boolean} [compress=false] Specifies whether or not to compress
+   *     the data
+   * @param {Object} options Options object
+   * @param {Boolean} [options.fin=false] Specifies whether or not to set the
+   *     FIN bit
+   * @param {Function} [options.generateMask] The function used to generate the
+   *     masking key
+   * @param {Boolean} [options.mask=false] Specifies whether or not to mask
+   *     `data`
+   * @param {Buffer} [options.maskBuffer] The buffer used to store the masking
+   *     key
+   * @param {Number} options.opcode The opcode
+   * @param {Boolean} [options.readOnly=false] Specifies whether `data` can be
+   *     modified
+   * @param {Boolean} [options.rsv1=false] Specifies whether or not to set the
+   *     RSV1 bit
+   * @param {Function} [cb] Callback
+   * @private
+   */
+  getBlobData(blob, compress, options, cb) {
+    this._bufferedBytes += options[kByteLength];
+    this._state = GET_BLOB_DATA;
+
+    blob
+      .arrayBuffer()
+      .then((arrayBuffer) => {
+        if (this._socket.destroyed) {
+          const err = new Error(
+            'The socket was closed while the blob was being read'
+          );
+
+          //
+          // `callCallbacks` is called in the next tick to ensure that errors
+          // that might be thrown in the callbacks behave like errors thrown
+          // outside the promise chain.
+          //
+          process.nextTick(callCallbacks, this, err, cb);
+          return;
+        }
+
+        this._bufferedBytes -= options[kByteLength];
+        const data = toBuffer(arrayBuffer);
+
+        if (!compress) {
+          this._state = DEFAULT;
+          this.sendFrame(Sender.frame(data, options), cb);
+          this.dequeue();
+        } else {
+          this.dispatch(data, compress, options, cb);
+        }
+      })
+      .catch((err) => {
+        //
+        // `onError` is called in the next tick for the same reason that
+        // `callCallbacks` above is.
+        //
+        process.nextTick(onError, this, err, cb);
+      });
   }
 
   /**
@@ -7614,27 +6762,19 @@ class Sender {
     const perMessageDeflate = this._extensions[PerMessageDeflate.extensionName];
 
     this._bufferedBytes += options[kByteLength];
-    this._deflating = true;
+    this._state = DEFLATING;
     perMessageDeflate.compress(data, options.fin, (_, buf) => {
       if (this._socket.destroyed) {
         const err = new Error(
           'The socket was closed while data was being compressed'
         );
 
-        if (typeof cb === 'function') cb(err);
-
-        for (let i = 0; i < this._queue.length; i++) {
-          const params = this._queue[i];
-          const callback = params[params.length - 1];
-
-          if (typeof callback === 'function') callback(err);
-        }
-
+        callCallbacks(this, err, cb);
         return;
       }
 
       this._bufferedBytes -= options[kByteLength];
-      this._deflating = false;
+      this._state = DEFAULT;
       options.readOnly = false;
       this.sendFrame(Sender.frame(buf, options), cb);
       this.dequeue();
@@ -7647,7 +6787,7 @@ class Sender {
    * @private
    */
   dequeue() {
-    while (!this._deflating && this._queue.length) {
+    while (this._state === DEFAULT && this._queue.length) {
       const params = this._queue.shift();
 
       this._bufferedBytes -= params[3][kByteLength];
@@ -7669,7 +6809,7 @@ class Sender {
   /**
    * Sends a frame.
    *
-   * @param {Buffer[]} list The frame to send
+   * @param {(Buffer | String)[]} list The frame to send
    * @param {Function} [cb] Callback
    * @private
    */
@@ -7687,14 +6827,48 @@ class Sender {
 
 module.exports = Sender;
 
+/**
+ * Calls queued callbacks with an error.
+ *
+ * @param {Sender} sender The `Sender` instance
+ * @param {Error} err The error to call the callbacks with
+ * @param {Function} [cb] The first callback
+ * @private
+ */
+function callCallbacks(sender, err, cb) {
+  if (typeof cb === 'function') cb(err);
+
+  for (let i = 0; i < sender._queue.length; i++) {
+    const params = sender._queue[i];
+    const callback = params[params.length - 1];
+
+    if (typeof callback === 'function') callback(err);
+  }
+}
+
+/**
+ * Handles a `Sender` error.
+ *
+ * @param {Sender} sender The `Sender` instance
+ * @param {Error} err The error
+ * @param {Function} [cb] The first pending callback
+ * @private
+ */
+function onError(sender, err, cb) {
+  callCallbacks(sender, err, cb);
+  sender.onerror(err);
+}
+
 
 /***/ }),
 
-/***/ 6572:
+/***/ 5251:
 /***/ ((module, __unused_webpack_exports, __nccwpck_require__) => {
 
+/* eslint no-unused-vars: ["error", { "varsIgnorePattern": "^WebSocket$" }] */
 
 
+const WebSocket = __nccwpck_require__(1710);
 const { Duplex } = __nccwpck_require__(2781);
 
 /**
@@ -7856,12 +7030,12 @@ module.exports = createWebSocketStream;
 
 /***/ }),
 
-/***/ 4973:
+/***/ 202:
 /***/ ((module, __unused_webpack_exports, __nccwpck_require__) => {
 
 
 
-const { tokenChars } = __nccwpck_require__(2291);
+const { tokenChars } = __nccwpck_require__(6219);
 
 /**
  * Parses the `Sec-WebSocket-Protocol` header into a set of subprotocol names.
@@ -7925,12 +7099,14 @@ module.exports = { parse };
 
 /***/ }),
 
-/***/ 2291:
+/***/ 6219:
 /***/ ((module, __unused_webpack_exports, __nccwpck_require__) => {
 
 
 
 const { isUtf8 } = __nccwpck_require__(4300);
+
+const { hasBlob } = __nccwpck_require__(2810);
 
 //
 // Allowed token characters:
@@ -8037,7 +7213,27 @@ function _isValidUTF8(buf) {
   return true;
 }
 
+/**
+ * Determines whether a value is a `Blob`.
+ *
+ * @param {*} value The value to be tested
+ * @return {Boolean} `true` if `value` is a `Blob`, else `false`
+ * @private
+ */
+function isBlob(value) {
+  return (
+    hasBlob &&
+    typeof value === 'object' &&
+    typeof value.arrayBuffer === 'function' &&
+    typeof value.type === 'string' &&
+    typeof value.stream === 'function' &&
+    (value[Symbol.toStringTag] === 'Blob' ||
+      value[Symbol.toStringTag] === 'File')
+  );
+}
+
 module.exports = {
+  isBlob,
   isValidStatusCode,
   isValidUTF8: _isValidUTF8,
   tokenChars
@@ -8062,7 +7258,7 @@ if (isUtf8) {
 
 /***/ }),
 
-/***/ 6989:
+/***/ 4938:
 /***/ ((module, __unused_webpack_exports, __nccwpck_require__) => {
 
 /* eslint no-unused-vars: ["error", { "varsIgnorePattern": "^Duplex$", "caughtErrors": "none" }] */
@@ -8074,11 +7270,11 @@ const http = __nccwpck_require__(3685);
 const { Duplex } = __nccwpck_require__(2781);
 const { createHash } = __nccwpck_require__(6113);
 
-const extension = __nccwpck_require__(9225);
-const PerMessageDeflate = __nccwpck_require__(1549);
-const subprotocol = __nccwpck_require__(4973);
-const WebSocket = __nccwpck_require__(1071);
-const { GUID, kWebSocket } = __nccwpck_require__(3481);
+const extension = __nccwpck_require__(9286);
+const PerMessageDeflate = __nccwpck_require__(2959);
+const subprotocol = __nccwpck_require__(202);
+const WebSocket = __nccwpck_require__(1710);
+const { CLOSE_TIMEOUT, GUID, kWebSocket } = __nccwpck_require__(2810);
 
 const keyRegex = /^[+/0-9A-Za-z]{22}==$/;
 
@@ -8105,8 +7301,15 @@ class WebSocketServer extends EventEmitter {
    *     pending connections
    * @param {Boolean} [options.clientTracking=true] Specifies whether or not to
    *     track clients
+   * @param {Number} [options.closeTimeout=30000] Duration in milliseconds to
+   *     wait for the closing handshake to finish after `websocket.close()` is
+   *     called
    * @param {Function} [options.handleProtocols] A hook to handle protocols
    * @param {String} [options.host] The hostname where to bind the server
+   * @param {Number} [options.maxBufferedChunks=1048576] The maximum number of
+   *     buffered data chunks
+   * @param {Number} [options.maxFragments=131072] The maximum number of message
+   *     fragments
    * @param {Number} [options.maxPayload=104857600] The maximum allowed message
    *     size
    * @param {Boolean} [options.noServer=false] Enable no server mode
@@ -8129,11 +7332,14 @@ class WebSocketServer extends EventEmitter {
     options = {
       allowSynchronousEvents: true,
       autoPong: true,
+      maxBufferedChunks: 1024 * 1024,
+      maxFragments: 128 * 1024,
       maxPayload: 100 * 1024 * 1024,
       skipUTF8Validation: false,
       perMessageDeflate: false,
       handleProtocols: null,
       clientTracking: true,
+      closeTimeout: CLOSE_TIMEOUT,
       verifyClient: null,
       noServer: false,
       backlog: null, // use default (511 as implemented in net.js)
@@ -8323,9 +7529,11 @@ class WebSocketServer extends EventEmitter {
       return;
     }
 
-    if (version !== 8 && version !== 13) {
+    if (version !== 13 && version !== 8) {
       const message = 'Missing or invalid Sec-WebSocket-Version header';
-      abortHandshakeOrEmitwsClientError(this, req, socket, 400, message);
+      abortHandshakeOrEmitwsClientError(this, req, socket, 400, message, {
+        'Sec-WebSocket-Version': '13, 8'
+      });
       return;
     }
 
@@ -8354,11 +7562,11 @@ class WebSocketServer extends EventEmitter {
       this.options.perMessageDeflate &&
       secWebSocketExtensions !== undefined
     ) {
-      const perMessageDeflate = new PerMessageDeflate(
-        this.options.perMessageDeflate,
-        true,
-        this.options.maxPayload
-      );
+      const perMessageDeflate = new PerMessageDeflate({
+        ...this.options.perMessageDeflate,
+        isServer: true,
+        maxPayload: this.options.maxPayload
+      });
 
       try {
         const offers = extension.parse(secWebSocketExtensions);
@@ -8485,6 +7693,8 @@ class WebSocketServer extends EventEmitter {
 
     ws.setSocket(socket, head, {
       allowSynchronousEvents: this.options.allowSynchronousEvents,
+      maxBufferedChunks: this.options.maxBufferedChunks,
+      maxFragments: this.options.maxFragments,
       maxPayload: this.options.maxPayload,
       skipUTF8Validation: this.options.skipUTF8Validation
     });
@@ -8593,23 +7803,31 @@ function abortHandshake(socket, code, message, headers) {
  * @param {Duplex} socket The socket of the upgrade request
  * @param {Number} code The HTTP response status code
  * @param {String} message The HTTP response body
+ * @param {Object} [headers] The HTTP response headers
  * @private
  */
-function abortHandshakeOrEmitwsClientError(server, req, socket, code, message) {
+function abortHandshakeOrEmitwsClientError(
+  server,
+  req,
+  socket,
+  code,
+  message,
+  headers
+) {
   if (server.listenerCount('wsClientError')) {
     const err = new Error(message);
     Error.captureStackTrace(err, abortHandshakeOrEmitwsClientError);
 
     server.emit('wsClientError', err, socket, req);
   } else {
-    abortHandshake(socket, code, message);
+    abortHandshake(socket, code, message, headers);
   }
 }
 
 
 /***/ }),
 
-/***/ 1071:
+/***/ 1710:
 /***/ ((module, __unused_webpack_exports, __nccwpck_require__) => {
 
 /* eslint no-unused-vars: ["error", { "varsIgnorePattern": "^Duplex|Readable$", "caughtErrors": "none" }] */
@@ -8625,11 +7843,14 @@ const { randomBytes, createHash } = __nccwpck_require__(6113);
 const { Duplex, Readable } = __nccwpck_require__(2781);
 const { URL } = __nccwpck_require__(7310);
 
-const PerMessageDeflate = __nccwpck_require__(1549);
-const Receiver = __nccwpck_require__(3558);
-const Sender = __nccwpck_require__(3016);
+const PerMessageDeflate = __nccwpck_require__(2959);
+const Receiver = __nccwpck_require__(2123);
+const Sender = __nccwpck_require__(446);
+const { isBlob } = __nccwpck_require__(6219);
+
 const {
   BINARY_TYPES,
+  CLOSE_TIMEOUT,
   EMPTY_BUFFER,
   GUID,
   kForOnEventAttribute,
@@ -8637,14 +7858,13 @@ const {
   kStatusCode,
   kWebSocket,
   NOOP
-} = __nccwpck_require__(3481);
+} = __nccwpck_require__(2810);
 const {
   EventTarget: { addEventListener, removeEventListener }
-} = __nccwpck_require__(1340);
-const { format, parse } = __nccwpck_require__(9225);
-const { toBuffer } = __nccwpck_require__(5696);
+} = __nccwpck_require__(166);
+const { format, parse } = __nccwpck_require__(9286);
+const { toBuffer } = __nccwpck_require__(7171);
 
-const closeTimeout = 30 * 1000;
 const kAborted = Symbol('kAborted');
 const protocolVersions = [8, 13];
 const readyStates = ['CONNECTING', 'OPEN', 'CLOSING', 'CLOSED'];
@@ -8672,6 +7892,7 @@ class WebSocket extends EventEmitter {
     this._closeFrameSent = false;
     this._closeMessage = EMPTY_BUFFER;
     this._closeTimer = null;
+    this._errorEmitted = false;
     this._extensions = {};
     this._paused = false;
     this._protocol = '';
@@ -8699,14 +7920,14 @@ class WebSocket extends EventEmitter {
       initAsClient(this, address, protocols, options);
     } else {
       this._autoPong = options.autoPong;
+      this._closeTimeout = options.closeTimeout;
       this._isServer = true;
     }
   }
 
   /**
-   * This deviates from the WHATWG interface since ws doesn't support the
-   * required default "blob" type (instead we define a custom "nodebuffer"
-   * type).
+   * For historical reasons, the custom "nodebuffer" type is used by the default
+   * instead of "blob".
    *
    * @type {String}
    */
@@ -8812,6 +8033,10 @@ class WebSocket extends EventEmitter {
    *     multiple times in the same tick
    * @param {Function} [options.generateMask] The function used to generate the
    *     masking key
+   * @param {Number} [options.maxBufferedChunks=0] The maximum number of
+   *     buffered data chunks
+   * @param {Number} [options.maxFragments=0] The maximum number of message
+   *     fragments
    * @param {Number} [options.maxPayload=0] The maximum allowed message size
    * @param {Boolean} [options.skipUTF8Validation=false] Specifies whether or
    *     not to skip UTF-8 validation for text and close messages
@@ -8823,15 +8048,20 @@ class WebSocket extends EventEmitter {
       binaryType: this.binaryType,
       extensions: this._extensions,
       isServer: this._isServer,
+      maxBufferedChunks: options.maxBufferedChunks,
+      maxFragments: options.maxFragments,
       maxPayload: options.maxPayload,
       skipUTF8Validation: options.skipUTF8Validation
     });
 
-    this._sender = new Sender(socket, this._extensions, options.generateMask);
+    const sender = new Sender(socket, this._extensions, options.generateMask);
+
     this._receiver = receiver;
+    this._sender = sender;
     this._socket = socket;
 
     receiver[kWebSocket] = this;
+    sender[kWebSocket] = this;
     socket[kWebSocket] = this;
 
     receiver.on('conclude', receiverOnConclude);
@@ -8840,6 +8070,8 @@ class WebSocket extends EventEmitter {
     receiver.on('message', receiverOnMessage);
     receiver.on('ping', receiverOnPing);
     receiver.on('pong', receiverOnPong);
+
+    sender.onerror = senderOnError;
 
     //
     // These methods may not be available if `socket` is just a `Duplex`.
@@ -8936,13 +8168,7 @@ class WebSocket extends EventEmitter {
       }
     });
 
-    //
-    // Specify a timeout for the closing handshake to complete.
-    //
-    this._closeTimer = setTimeout(
-      this._socket.destroy.bind(this._socket),
-      closeTimeout
-    );
+    setCloseTimer(this);
   }
 
   /**
@@ -9242,6 +8468,8 @@ module.exports = WebSocket;
  *     times in the same tick
  * @param {Boolean} [options.autoPong=true] Specifies whether or not to
  *     automatically send a pong in response to a ping
+ * @param {Number} [options.closeTimeout=30000] Duration in milliseconds to wait
+ *     for the closing handshake to finish after `websocket.close()` is called
  * @param {Function} [options.finishRequest] A function which can be used to
  *     customize the headers of each http request before it is sent
  * @param {Boolean} [options.followRedirects=false] Whether or not to follow
@@ -9250,6 +8478,10 @@ module.exports = WebSocket;
  *     masking key
  * @param {Number} [options.handshakeTimeout] Timeout in milliseconds for the
  *     handshake request
+ * @param {Number} [options.maxBufferedChunks=1048576] The maximum number of
+ *     buffered data chunks
+ * @param {Number} [options.maxFragments=131072] The maximum number of message
+ *     fragments
  * @param {Number} [options.maxPayload=104857600] The maximum allowed message
  *     size
  * @param {Number} [options.maxRedirects=10] The maximum number of redirects
@@ -9268,7 +8500,10 @@ function initAsClient(websocket, address, protocols, options) {
   const opts = {
     allowSynchronousEvents: true,
     autoPong: true,
+    closeTimeout: CLOSE_TIMEOUT,
     protocolVersion: protocolVersions[1],
+    maxBufferedChunks: 1024 * 1024,
+    maxFragments: 128 * 1024,
     maxPayload: 100 * 1024 * 1024,
     skipUTF8Validation: false,
     perMessageDeflate: true,
@@ -9286,6 +8521,7 @@ function initAsClient(websocket, address, protocols, options) {
   };
 
   websocket._autoPong = opts.autoPong;
+  websocket._closeTimeout = opts.closeTimeout;
 
   if (!protocolVersions.includes(opts.protocolVersion)) {
     throw new RangeError(
@@ -9301,7 +8537,7 @@ function initAsClient(websocket, address, protocols, options) {
   } else {
     try {
       parsedUrl = new URL(address);
-    } catch (e) {
+    } catch {
       throw new SyntaxError(`Invalid URL: ${address}`);
     }
   }
@@ -9321,7 +8557,7 @@ function initAsClient(websocket, address, protocols, options) {
   if (parsedUrl.protocol !== 'ws:' && !isSecure && !isIpcUrl) {
     invalidUrlMessage =
       'The URL\'s protocol must be one of "ws:", "wss:", ' +
-      '"http:", "https", or "ws+unix:"';
+      '"http:", "https:", or "ws+unix:"';
   } else if (isIpcUrl && !parsedUrl.pathname) {
     invalidUrlMessage = "The URL's pathname is empty";
   } else if (parsedUrl.hash) {
@@ -9363,11 +8599,11 @@ function initAsClient(websocket, address, protocols, options) {
   opts.timeout = opts.handshakeTimeout;
 
   if (opts.perMessageDeflate) {
-    perMessageDeflate = new PerMessageDeflate(
-      opts.perMessageDeflate !== true ? opts.perMessageDeflate : {},
-      false,
-      opts.maxPayload
-    );
+    perMessageDeflate = new PerMessageDeflate({
+      ...opts.perMessageDeflate,
+      isServer: false,
+      maxPayload: opts.maxPayload
+    });
     opts.headers['Sec-WebSocket-Extensions'] = format({
       [PerMessageDeflate.extensionName]: perMessageDeflate.offer()
     });
@@ -9625,6 +8861,8 @@ function initAsClient(websocket, address, protocols, options) {
     websocket.setSocket(socket, head, {
       allowSynchronousEvents: opts.allowSynchronousEvents,
       generateMask: opts.generateMask,
+      maxBufferedChunks: opts.maxBufferedChunks,
+      maxFragments: opts.maxFragments,
       maxPayload: opts.maxPayload,
       skipUTF8Validation: opts.skipUTF8Validation
     });
@@ -9646,6 +8884,11 @@ function initAsClient(websocket, address, protocols, options) {
  */
 function emitErrorAndClose(websocket, err) {
   websocket._readyState = WebSocket.CLOSING;
+  //
+  // The following assignment is practically useless and is done only for
+  // consistency.
+  //
+  websocket._errorEmitted = true;
   websocket.emit('error', err);
   websocket.emitClose();
 }
@@ -9726,7 +8969,7 @@ function abortHandshake(websocket, stream, message) {
  */
 function sendAfterClose(websocket, data, cb) {
   if (data) {
-    const length = toBuffer(data).length;
+    const length = isBlob(data) ? data.size : toBuffer(data).length;
 
     //
     // The `_bufferedAmount` property is used only when the peer is a client and
@@ -9802,7 +9045,10 @@ function receiverOnError(err) {
     websocket.close(err[kStatusCode]);
   }
 
-  websocket.emit('error', err);
+  if (!websocket._errorEmitted) {
+    websocket._errorEmitted = true;
+    websocket.emit('error', err);
+  }
 }
 
 /**
@@ -9859,6 +9105,47 @@ function resume(stream) {
 }
 
 /**
+ * The `Sender` error event handler.
+ *
+ * @param {Error} The error
+ * @private
+ */
+function senderOnError(err) {
+  const websocket = this[kWebSocket];
+
+  if (websocket.readyState === WebSocket.CLOSED) return;
+  if (websocket.readyState === WebSocket.OPEN) {
+    websocket._readyState = WebSocket.CLOSING;
+    setCloseTimer(websocket);
+  }
+
+  //
+  // `socket.end()` is used instead of `socket.destroy()` to allow the other
+  // peer to finish sending queued data. There is no need to set a timer here
+  // because `CLOSING` means that it is already set or not needed.
+  //
+  this._socket.end();
+
+  if (!websocket._errorEmitted) {
+    websocket._errorEmitted = true;
+    websocket.emit('error', err);
+  }
+}
+
+/**
+ * Set a timer to destroy the underlying raw socket of a WebSocket.
+ *
+ * @param {WebSocket} websocket The WebSocket instance
+ * @private
+ */
+function setCloseTimer(websocket) {
+  websocket._closeTimer = setTimeout(
+    websocket._socket.destroy.bind(websocket._socket),
+    websocket._closeTimeout
+  );
+}
+
+/**
  * The listener of the socket `'close'` event.
  *
  * @private
@@ -9872,23 +9159,23 @@ function socketOnClose() {
 
   websocket._readyState = WebSocket.CLOSING;
 
-  let chunk;
-
   //
   // The close frame might not have been received or the `'end'` event emitted,
   // for example, if the socket was destroyed due to an error. Ensure that the
   // `receiver` stream is closed after writing any remaining buffered data to
   // it. If the readable side of the socket is in flowing mode then there is no
-  // buffered data as everything has been already written and `readable.read()`
-  // will return `null`. If instead, the socket is paused, any possible buffered
-  // data will be read as a single chunk.
+  // buffered data as everything has been already written. If instead, the
+  // socket is paused, any possible buffered data will be read as a single
+  // chunk.
   //
   if (
     !this._readableState.endEmitted &&
     !websocket._closeFrameReceived &&
     !websocket._receiver._writableState.errorEmitted &&
-    (chunk = websocket._socket.read()) !== null
+    this._readableState.length !== 0
   ) {
+    const chunk = this.read(this._readableState.length);
+
     websocket._receiver.write(chunk);
   }
 
@@ -9954,714 +9241,10 @@ function socketOnError() {
 
 /***/ }),
 
-/***/ 6169:
-/***/ ((module, __unused_webpack_exports, __nccwpck_require__) => {
-
-/**
- * Wrapper for built-in http.js to emulate the browser XMLHttpRequest object.
- *
- * This can be used with JS designed for browsers to improve reuse of code and
- * allow the use of existing libraries.
- *
- * Usage: include("XMLHttpRequest.js") and use XMLHttpRequest per W3C specs.
- *
- * @author Dan DeFelippi <dan@driverdan.com>
- * @contributor David Ellis <d.f.ellis@ieee.org>
- * @license MIT
- */
-
-var fs = __nccwpck_require__(7147);
-var Url = __nccwpck_require__(7310);
-var spawn = (__nccwpck_require__(2081).spawn);
-
-/**
- * Module exports.
- */
-
-module.exports = XMLHttpRequest;
-
-// backwards-compat
-XMLHttpRequest.XMLHttpRequest = XMLHttpRequest;
-
-/**
- * `XMLHttpRequest` constructor.
- *
- * Supported options for the `opts` object are:
- *
- *  - `agent`: An http.Agent instance; http.globalAgent may be used; if 'undefined', agent usage is disabled
- *
- * @param {Object} opts optional "options" object
- */
-
-function XMLHttpRequest(opts) {
-  "use strict";
-
-  opts = opts || {};
-
-  /**
-   * Private variables
-   */
-  var self = this;
-  var http = __nccwpck_require__(3685);
-  var https = __nccwpck_require__(5687);
-
-  // Holds http.js objects
-  var request;
-  var response;
-
-  // Request settings
-  var settings = {};
-
-  // Disable header blacklist.
-  // Not part of XHR specs.
-  var disableHeaderCheck = false;
-
-  // Set some default headers
-  var defaultHeaders = {
-    "User-Agent": "node-XMLHttpRequest",
-    "Accept": "*/*"
-  };
-
-  var headers = Object.assign({}, defaultHeaders);
-
-  // These headers are not user setable.
-  // The following are allowed but banned in the spec:
-  // * user-agent
-  var forbiddenRequestHeaders = [
-    "accept-charset",
-    "accept-encoding",
-    "access-control-request-headers",
-    "access-control-request-method",
-    "connection",
-    "content-length",
-    "content-transfer-encoding",
-    "cookie",
-    "cookie2",
-    "date",
-    "expect",
-    "host",
-    "keep-alive",
-    "origin",
-    "referer",
-    "te",
-    "trailer",
-    "transfer-encoding",
-    "upgrade",
-    "via"
-  ];
-
-  // These request methods are not allowed
-  var forbiddenRequestMethods = [
-    "TRACE",
-    "TRACK",
-    "CONNECT"
-  ];
-
-  // Send flag
-  var sendFlag = false;
-  // Error flag, used when errors occur or abort is called
-  var errorFlag = false;
-  var abortedFlag = false;
-
-  // Event listeners
-  var listeners = {};
-
-  /**
-   * Constants
-   */
-
-  this.UNSENT = 0;
-  this.OPENED = 1;
-  this.HEADERS_RECEIVED = 2;
-  this.LOADING = 3;
-  this.DONE = 4;
-
-  /**
-   * Public vars
-   */
-
-  // Current state
-  this.readyState = this.UNSENT;
-
-  // default ready state change handler in case one is not set or is set late
-  this.onreadystatechange = null;
-
-  // Result & response
-  this.responseText = "";
-  this.responseXML = "";
-  this.response = Buffer.alloc(0);
-  this.status = null;
-  this.statusText = null;
-
-  /**
-   * Private methods
-   */
-
-  /**
-   * Check if the specified header is allowed.
-   *
-   * @param string header Header to validate
-   * @return boolean False if not allowed, otherwise true
-   */
-  var isAllowedHttpHeader = function(header) {
-    return disableHeaderCheck || (header && forbiddenRequestHeaders.indexOf(header.toLowerCase()) === -1);
-  };
-
-  /**
-   * Check if the specified method is allowed.
-   *
-   * @param string method Request method to validate
-   * @return boolean False if not allowed, otherwise true
-   */
-  var isAllowedHttpMethod = function(method) {
-    return (method && forbiddenRequestMethods.indexOf(method) === -1);
-  };
-
-  /**
-   * Public methods
-   */
-
-  /**
-   * Open the connection. Currently supports local server requests.
-   *
-   * @param string method Connection method (eg GET, POST)
-   * @param string url URL for the connection.
-   * @param boolean async Asynchronous connection. Default is true.
-   * @param string user Username for basic authentication (optional)
-   * @param string password Password for basic authentication (optional)
-   */
-  this.open = function(method, url, async, user, password) {
-    this.abort();
-    errorFlag = false;
-    abortedFlag = false;
-
-    // Check for valid request method
-    if (!isAllowedHttpMethod(method)) {
-      throw new Error("SecurityError: Request method not allowed");
-    }
-
-    settings = {
-      "method": method,
-      "url": url.toString(),
-      "async": (typeof async !== "boolean" ? true : async),
-      "user": user || null,
-      "password": password || null
-    };
-
-    setState(this.OPENED);
-  };
-
-  /**
-   * Disables or enables isAllowedHttpHeader() check the request. Enabled by default.
-   * This does not conform to the W3C spec.
-   *
-   * @param boolean state Enable or disable header checking.
-   */
-  this.setDisableHeaderCheck = function(state) {
-    disableHeaderCheck = state;
-  };
-
-  /**
-   * Sets a header for the request.
-   *
-   * @param string header Header name
-   * @param string value Header value
-   * @return boolean Header added
-   */
-  this.setRequestHeader = function(header, value) {
-    if (this.readyState != this.OPENED) {
-      throw new Error("INVALID_STATE_ERR: setRequestHeader can only be called when state is OPEN");
-    }
-    if (!isAllowedHttpHeader(header)) {
-      console.warn('Refused to set unsafe header "' + header + '"');
-      return false;
-    }
-    if (sendFlag) {
-      throw new Error("INVALID_STATE_ERR: send flag is true");
-    }
-    headers[header] = value;
-    return true;
-  };
-
-  /**
-   * Gets a header from the server response.
-   *
-   * @param string header Name of header to get.
-   * @return string Text of the header or null if it doesn't exist.
-   */
-  this.getResponseHeader = function(header) {
-    if (typeof header === "string"
-      && this.readyState > this.OPENED
-      && response.headers[header.toLowerCase()]
-      && !errorFlag
-    ) {
-      return response.headers[header.toLowerCase()];
-    }
-
-    return null;
-  };
-
-  /**
-   * Gets all the response headers.
-   *
-   * @return string A string with all response headers separated by CR+LF
-   */
-  this.getAllResponseHeaders = function() {
-    if (this.readyState < this.HEADERS_RECEIVED || errorFlag) {
-      return "";
-    }
-    var result = "";
-
-    for (var i in response.headers) {
-      // Cookie headers are excluded
-      if (i !== "set-cookie" && i !== "set-cookie2") {
-        result += i + ": " + response.headers[i] + "\r\n";
-      }
-    }
-    return result.substr(0, result.length - 2);
-  };
-
-  /**
-   * Gets a request header
-   *
-   * @param string name Name of header to get
-   * @return string Returns the request header or empty string if not set
-   */
-  this.getRequestHeader = function(name) {
-    // @TODO Make this case insensitive
-    if (typeof name === "string" && headers[name]) {
-      return headers[name];
-    }
-
-    return "";
-  };
-
-  /**
-   * Sends the request to the server.
-   *
-   * @param string data Optional data to send as request body.
-   */
-  this.send = function(data) {
-    if (this.readyState != this.OPENED) {
-      throw new Error("INVALID_STATE_ERR: connection must be opened before send() is called");
-    }
-
-    if (sendFlag) {
-      throw new Error("INVALID_STATE_ERR: send has already been called");
-    }
-
-    var ssl = false, local = false;
-    var url = Url.parse(settings.url);
-    var host;
-    // Determine the server
-    switch (url.protocol) {
-      case 'https:':
-        ssl = true;
-        // SSL & non-SSL both need host, no break here.
-      case 'http:':
-        host = url.hostname;
-        break;
-
-      case 'file:':
-        local = true;
-        break;
-
-      case undefined:
-      case '':
-        host = "localhost";
-        break;
-
-      default:
-        throw new Error("Protocol not supported.");
-    }
-
-    // Load files off the local filesystem (file://)
-    if (local) {
-      if (settings.method !== "GET") {
-        throw new Error("XMLHttpRequest: Only GET method is supported");
-      }
-
-      if (settings.async) {
-        fs.readFile(unescape(url.pathname), function(error, data) {
-          if (error) {
-            self.handleError(error, error.errno || -1);
-          } else {
-            self.status = 200;
-            self.responseText = data.toString('utf8');
-            self.response = data;
-            setState(self.DONE);
-          }
-        });
-      } else {
-        try {
-          this.response = fs.readFileSync(unescape(url.pathname));
-          this.responseText = this.response.toString('utf8');
-          this.status = 200;
-          setState(self.DONE);
-        } catch(e) {
-          this.handleError(e, e.errno || -1);
-        }
-      }
-
-      return;
-    }
-
-    // Default to port 80. If accessing localhost on another port be sure
-    // to use http://localhost:port/path
-    var port = url.port || (ssl ? 443 : 80);
-    // Add query string if one is used
-    var uri = url.pathname + (url.search ? url.search : '');
-
-    // Set the Host header or the server may reject the request
-    headers["Host"] = host;
-    if (!((ssl && port === 443) || port === 80)) {
-      headers["Host"] += ':' + url.port;
-    }
-
-    // Set Basic Auth if necessary
-    if (settings.user) {
-      if (typeof settings.password == "undefined") {
-        settings.password = "";
-      }
-      var authBuf = new Buffer(settings.user + ":" + settings.password);
-      headers["Authorization"] = "Basic " + authBuf.toString("base64");
-    }
-
-    // Set content length header
-    if (settings.method === "GET" || settings.method === "HEAD") {
-      data = null;
-    } else if (data) {
-      headers["Content-Length"] = Buffer.isBuffer(data) ? data.length : Buffer.byteLength(data);
-
-      var headersKeys = Object.keys(headers);
-      if (!headersKeys.some(function (h) { return h.toLowerCase() === 'content-type' })) {
-        headers["Content-Type"] = "text/plain;charset=UTF-8";
-      }
-    } else if (settings.method === "POST") {
-      // For a post with no data set Content-Length: 0.
-      // This is required by buggy servers that don't meet the specs.
-      headers["Content-Length"] = 0;
-    }
-
-    var agent = opts.agent || false;
-    var options = {
-      host: host,
-      port: port,
-      path: uri,
-      method: settings.method,
-      headers: headers,
-      agent: agent
-    };
-
-    if (ssl) {
-      options.pfx = opts.pfx;
-      options.key = opts.key;
-      options.passphrase = opts.passphrase;
-      options.cert = opts.cert;
-      options.ca = opts.ca;
-      options.ciphers = opts.ciphers;
-      options.rejectUnauthorized = opts.rejectUnauthorized === false ? false : true;
-    }
-
-    // Reset error flag
-    errorFlag = false;
-    // Handle async requests
-    if (settings.async) {
-      // Use the proper protocol
-      var doRequest = ssl ? https.request : http.request;
-
-      // Request is being sent, set send flag
-      sendFlag = true;
-
-      // As per spec, this is called here for historical reasons.
-      self.dispatchEvent("readystatechange");
-
-      // Handler for the response
-      var responseHandler = function(resp) {
-        // Set response var to the response we got back
-        // This is so it remains accessable outside this scope
-        response = resp;
-        // Check for redirect
-        // @TODO Prevent looped redirects
-        if (response.statusCode === 302 || response.statusCode === 303 || response.statusCode === 307) {
-          // Change URL to the redirect location
-          settings.url = response.headers.location;
-          var url = Url.parse(settings.url);
-          // Set host var in case it's used later
-          host = url.hostname;
-          // Options for the new request
-          var newOptions = {
-            hostname: url.hostname,
-            port: url.port,
-            path: url.path,
-            method: response.statusCode === 303 ? 'GET' : settings.method,
-            headers: headers
-          };
-
-          if (ssl) {
-            newOptions.pfx = opts.pfx;
-            newOptions.key = opts.key;
-            newOptions.passphrase = opts.passphrase;
-            newOptions.cert = opts.cert;
-            newOptions.ca = opts.ca;
-            newOptions.ciphers = opts.ciphers;
-            newOptions.rejectUnauthorized = opts.rejectUnauthorized === false ? false : true;
-          }
-
-          // Issue the new request
-          request = doRequest(newOptions, responseHandler).on('error', errorHandler);
-          request.end();
-          // @TODO Check if an XHR event needs to be fired here
-          return;
-        }
-
-        setState(self.HEADERS_RECEIVED);
-        self.status = response.statusCode;
-
-        response.on('data', function(chunk) {
-          // Make sure there's some data
-          if (chunk) {
-            var data = Buffer.from(chunk);
-            self.response = Buffer.concat([self.response, data]);
-          }
-          // Don't emit state changes if the connection has been aborted.
-          if (sendFlag) {
-            setState(self.LOADING);
-          }
-        });
-
-        response.on('end', function() {
-          if (sendFlag) {
-            // The sendFlag needs to be set before setState is called.  Otherwise if we are chaining callbacks
-            // there can be a timing issue (the callback is called and a new call is made before the flag is reset).
-            sendFlag = false;
-            // Discard the 'end' event if the connection has been aborted
-            setState(self.DONE);
-            // Construct responseText from response
-            self.responseText = self.response.toString('utf8');
-          }
-        });
-
-        response.on('error', function(error) {
-          self.handleError(error);
-        });
-      }
-
-      // Error handler for the request
-      var errorHandler = function(error) {
-        // In the case of https://nodejs.org/api/http.html#requestreusedsocket triggering an ECONNRESET,
-        // don't fail the xhr request, attempt again.
-        if (request.reusedSocket && error.code === 'ECONNRESET')
-          return doRequest(options, responseHandler).on('error', errorHandler);
-        self.handleError(error);
-      }
-
-      // Create the request
-      request = doRequest(options, responseHandler).on('error', errorHandler);
-
-      if (opts.autoUnref) {
-        request.on('socket', (socket) => {
-          socket.unref();
-        });
-      }
-
-      // Node 0.4 and later won't accept empty data. Make sure it's needed.
-      if (data) {
-        request.write(data);
-      }
-
-      request.end();
-
-      self.dispatchEvent("loadstart");
-    } else { // Synchronous
-      // Create a temporary file for communication with the other Node process
-      var contentFile = ".node-xmlhttprequest-content-" + process.pid;
-      var syncFile = ".node-xmlhttprequest-sync-" + process.pid;
-      fs.writeFileSync(syncFile, "", "utf8");
-      // The async request the other Node process executes
-      var execString = "var http = require('http'), https = require('https'), fs = require('fs');"
-        + "var doRequest = http" + (ssl ? "s" : "") + ".request;"
-        + "var options = " + JSON.stringify(options) + ";"
-        + "var responseText = '';"
-        + "var responseData = Buffer.alloc(0);"
-        + "var req = doRequest(options, function(response) {"
-        + "response.on('data', function(chunk) {"
-        + "  var data = Buffer.from(chunk);"
-        + "  responseText += data.toString('utf8');"
-        + "  responseData = Buffer.concat([responseData, data]);"
-        + "});"
-        + "response.on('end', function() {"
-        + "fs.writeFileSync('" + contentFile + "', JSON.stringify({err: null, data: {statusCode: response.statusCode, headers: response.headers, text: responseText, data: responseData.toString('base64')}}), 'utf8');"
-        + "fs.unlinkSync('" + syncFile + "');"
-        + "});"
-        + "response.on('error', function(error) {"
-        + "fs.writeFileSync('" + contentFile + "', 'NODE-XMLHTTPREQUEST-ERROR:' + JSON.stringify(error), 'utf8');"
-        + "fs.unlinkSync('" + syncFile + "');"
-        + "});"
-        + "}).on('error', function(error) {"
-        + "fs.writeFileSync('" + contentFile + "', 'NODE-XMLHTTPREQUEST-ERROR:' + JSON.stringify(error), 'utf8');"
-        + "fs.unlinkSync('" + syncFile + "');"
-        + "});"
-        + (data ? "req.write('" + JSON.stringify(data).slice(1,-1).replace(/'/g, "\\'") + "');":"")
-        + "req.end();";
-      // Start the other Node Process, executing this string
-      var syncProc = spawn(process.argv[0], ["-e", execString]);
-      var statusText;
-      while(fs.existsSync(syncFile)) {
-        // Wait while the sync file is empty
-      }
-      self.responseText = fs.readFileSync(contentFile, 'utf8');
-      // Kill the child process once the file has data
-      syncProc.stdin.end();
-      // Remove the temporary file
-      fs.unlinkSync(contentFile);
-      if (self.responseText.match(/^NODE-XMLHTTPREQUEST-ERROR:/)) {
-        // If the file returned an error, handle it
-        var errorObj = JSON.parse(self.responseText.replace(/^NODE-XMLHTTPREQUEST-ERROR:/, ""));
-        self.handleError(errorObj, 503);
-      } else {
-        // If the file returned okay, parse its data and move to the DONE state
-        self.status = self.responseText.replace(/^NODE-XMLHTTPREQUEST-STATUS:([0-9]*),.*/, "$1");
-        var resp = JSON.parse(self.responseText.replace(/^NODE-XMLHTTPREQUEST-STATUS:[0-9]*,(.*)/, "$1"));
-        response = {
-          statusCode: self.status,
-          headers: resp.data.headers
-        };
-        self.responseText = resp.data.text;
-        self.response = Buffer.from(resp.data.data, 'base64');
-        setState(self.DONE, true);
-      }
-    }
-  };
-
-  /**
-   * Called when an error is encountered to deal with it.
-   * @param  status  {number}    HTTP status code to use rather than the default (0) for XHR errors.
-   */
-  this.handleError = function(error, status) {
-    this.status = status || 0;
-    this.statusText = error;
-    this.responseText = error.stack;
-    errorFlag = true;
-    setState(this.DONE);
-  };
-
-  /**
-   * Aborts a request.
-   */
-  this.abort = function() {
-    if (request) {
-      request.abort();
-      request = null;
-    }
-
-    headers = Object.assign({}, defaultHeaders);
-    this.responseText = "";
-    this.responseXML = "";
-    this.response = Buffer.alloc(0);
-
-    errorFlag = abortedFlag = true
-    if (this.readyState !== this.UNSENT
-        && (this.readyState !== this.OPENED || sendFlag)
-        && this.readyState !== this.DONE) {
-      sendFlag = false;
-      setState(this.DONE);
-    }
-    this.readyState = this.UNSENT;
-  };
-
-  /**
-   * Adds an event listener. Preferred method of binding to events.
-   */
-  this.addEventListener = function(event, callback) {
-    if (!(event in listeners)) {
-      listeners[event] = [];
-    }
-    // Currently allows duplicate callbacks. Should it?
-    listeners[event].push(callback);
-  };
-
-  /**
-   * Remove an event callback that has already been bound.
-   * Only works on the matching funciton, cannot be a copy.
-   */
-  this.removeEventListener = function(event, callback) {
-    if (event in listeners) {
-      // Filter will return a new array with the callback removed
-      listeners[event] = listeners[event].filter(function(ev) {
-        return ev !== callback;
-      });
-    }
-  };
-
-  /**
-   * Dispatch any events, including both "on" methods and events attached using addEventListener.
-   */
-  this.dispatchEvent = function (event) {
-    if (typeof self["on" + event] === "function") {
-      if (this.readyState === this.DONE && settings.async)
-        setTimeout(function() { self["on" + event]() }, 0)
-      else
-        self["on" + event]()
-    }
-    if (event in listeners) {
-      for (let i = 0, len = listeners[event].length; i < len; i++) {
-        if (this.readyState === this.DONE)
-          setTimeout(function() { listeners[event][i].call(self) }, 0)
-        else
-          listeners[event][i].call(self)
-      }
-    }
-  };
-
-  /**
-   * Changes readyState and calls onreadystatechange.
-   *
-   * @param int state New state
-   */
-  var setState = function(state) {
-    if ((self.readyState === state) || (self.readyState === self.UNSENT && abortedFlag))
-      return
-
-    self.readyState = state;
-
-    if (settings.async || self.readyState < self.OPENED || self.readyState === self.DONE) {
-      self.dispatchEvent("readystatechange");
-    }
-
-    if (self.readyState === self.DONE) {
-      let fire
-
-      if (abortedFlag)
-        fire = "abort"
-      else if (errorFlag)
-        fire = "error"
-      else
-        fire = "load"
-
-      self.dispatchEvent(fire)
-
-      // @TODO figure out InspectorInstrumentation::didLoadXHR(cookie)
-      self.dispatchEvent("loadend");
-    }
-  };
-};
-
-
-/***/ }),
-
 /***/ 9424:
 /***/ ((module) => {
 
 module.exports = eval("require")("bufferutil");
-
-
-/***/ }),
-
-/***/ 7365:
-/***/ ((module) => {
-
-module.exports = eval("require")("supports-color");
 
 
 /***/ }),
@@ -10681,13 +9264,6 @@ module.exports = __WEBPACK_EXTERNAL_createRequire(import.meta.url)("buffer");
 
 /***/ }),
 
-/***/ 2081:
-/***/ ((module) => {
-
-module.exports = __WEBPACK_EXTERNAL_createRequire(import.meta.url)("child_process");
-
-/***/ }),
-
 /***/ 6113:
 /***/ ((module) => {
 
@@ -10699,13 +9275,6 @@ module.exports = __WEBPACK_EXTERNAL_createRequire(import.meta.url)("crypto");
 /***/ ((module) => {
 
 module.exports = __WEBPACK_EXTERNAL_createRequire(import.meta.url)("events");
-
-/***/ }),
-
-/***/ 7147:
-/***/ ((module) => {
-
-module.exports = __WEBPACK_EXTERNAL_createRequire(import.meta.url)("fs");
 
 /***/ }),
 
@@ -10758,13 +9327,6 @@ module.exports = __WEBPACK_EXTERNAL_createRequire(import.meta.url)("tls");
 
 /***/ }),
 
-/***/ 6224:
-/***/ ((module) => {
-
-module.exports = __WEBPACK_EXTERNAL_createRequire(import.meta.url)("tty");
-
-/***/ }),
-
 /***/ 7310:
 /***/ ((module) => {
 
@@ -10783,189 +9345,6 @@ module.exports = __WEBPACK_EXTERNAL_createRequire(import.meta.url)("util");
 /***/ ((module) => {
 
 module.exports = __WEBPACK_EXTERNAL_createRequire(import.meta.url)("zlib");
-
-/***/ }),
-
-/***/ 3234:
-/***/ ((__unused_webpack_module, exports) => {
-
-
-/**
- * Expose `Emitter`.
- */
-
-exports.Q = Emitter;
-
-/**
- * Initialize a new `Emitter`.
- *
- * @api public
- */
-
-function Emitter(obj) {
-  if (obj) return mixin(obj);
-}
-
-/**
- * Mixin the emitter properties.
- *
- * @param {Object} obj
- * @return {Object}
- * @api private
- */
-
-function mixin(obj) {
-  for (var key in Emitter.prototype) {
-    obj[key] = Emitter.prototype[key];
-  }
-  return obj;
-}
-
-/**
- * Listen on the given `event` with `fn`.
- *
- * @param {String} event
- * @param {Function} fn
- * @return {Emitter}
- * @api public
- */
-
-Emitter.prototype.on =
-Emitter.prototype.addEventListener = function(event, fn){
-  this._callbacks = this._callbacks || {};
-  (this._callbacks['$' + event] = this._callbacks['$' + event] || [])
-    .push(fn);
-  return this;
-};
-
-/**
- * Adds an `event` listener that will be invoked a single
- * time then automatically removed.
- *
- * @param {String} event
- * @param {Function} fn
- * @return {Emitter}
- * @api public
- */
-
-Emitter.prototype.once = function(event, fn){
-  function on() {
-    this.off(event, on);
-    fn.apply(this, arguments);
-  }
-
-  on.fn = fn;
-  this.on(event, on);
-  return this;
-};
-
-/**
- * Remove the given callback for `event` or all
- * registered callbacks.
- *
- * @param {String} event
- * @param {Function} fn
- * @return {Emitter}
- * @api public
- */
-
-Emitter.prototype.off =
-Emitter.prototype.removeListener =
-Emitter.prototype.removeAllListeners =
-Emitter.prototype.removeEventListener = function(event, fn){
-  this._callbacks = this._callbacks || {};
-
-  // all
-  if (0 == arguments.length) {
-    this._callbacks = {};
-    return this;
-  }
-
-  // specific event
-  var callbacks = this._callbacks['$' + event];
-  if (!callbacks) return this;
-
-  // remove all handlers
-  if (1 == arguments.length) {
-    delete this._callbacks['$' + event];
-    return this;
-  }
-
-  // remove specific handler
-  var cb;
-  for (var i = 0; i < callbacks.length; i++) {
-    cb = callbacks[i];
-    if (cb === fn || cb.fn === fn) {
-      callbacks.splice(i, 1);
-      break;
-    }
-  }
-
-  // Remove event specific arrays for event types that no
-  // one is subscribed for to avoid memory leak.
-  if (callbacks.length === 0) {
-    delete this._callbacks['$' + event];
-  }
-
-  return this;
-};
-
-/**
- * Emit `event` with the given args.
- *
- * @param {String} event
- * @param {Mixed} ...
- * @return {Emitter}
- */
-
-Emitter.prototype.emit = function(event){
-  this._callbacks = this._callbacks || {};
-
-  var args = new Array(arguments.length - 1)
-    , callbacks = this._callbacks['$' + event];
-
-  for (var i = 1; i < arguments.length; i++) {
-    args[i - 1] = arguments[i];
-  }
-
-  if (callbacks) {
-    callbacks = callbacks.slice(0);
-    for (var i = 0, len = callbacks.length; i < len; ++i) {
-      callbacks[i].apply(this, args);
-    }
-  }
-
-  return this;
-};
-
-// alias used for reserved events (protected method)
-Emitter.prototype.emitReserved = Emitter.prototype.emit;
-
-/**
- * Return array of callbacks for `event`.
- *
- * @param {String} event
- * @return {Array}
- * @api public
- */
-
-Emitter.prototype.listeners = function(event){
-  this._callbacks = this._callbacks || {};
-  return this._callbacks['$' + event] || [];
-};
-
-/**
- * Check if this emitter has `event` handlers.
- *
- * @param {String} event
- * @return {Boolean}
- * @api public
- */
-
-Emitter.prototype.hasListeners = function(event){
-  return !! this.listeners(event).length;
-};
-
 
 /***/ }),
 
@@ -19519,36 +17898,6 @@ exports.visitAsync = visitAsync;
 /******/ }
 /******/ 
 /************************************************************************/
-/******/ /* webpack/runtime/create fake namespace object */
-/******/ (() => {
-/******/ 	var getProto = Object.getPrototypeOf ? (obj) => (Object.getPrototypeOf(obj)) : (obj) => (obj.__proto__);
-/******/ 	var leafPrototypes;
-/******/ 	// create a fake namespace object
-/******/ 	// mode & 1: value is a module id, require it
-/******/ 	// mode & 2: merge all properties of value into the ns
-/******/ 	// mode & 4: return value when already ns object
-/******/ 	// mode & 16: return value when it's Promise-like
-/******/ 	// mode & 8|1: behave like require
-/******/ 	__nccwpck_require__.t = function(value, mode) {
-/******/ 		if(mode & 1) value = this(value);
-/******/ 		if(mode & 8) return value;
-/******/ 		if(typeof value === 'object' && value) {
-/******/ 			if((mode & 4) && value.__esModule) return value;
-/******/ 			if((mode & 16) && typeof value.then === 'function') return value;
-/******/ 		}
-/******/ 		var ns = Object.create(null);
-/******/ 		__nccwpck_require__.r(ns);
-/******/ 		var def = {};
-/******/ 		leafPrototypes = leafPrototypes || [null, getProto({}), getProto([]), getProto(getProto)];
-/******/ 		for(var current = mode & 2 && value; typeof current == 'object' && !~leafPrototypes.indexOf(current); current = getProto(current)) {
-/******/ 			Object.getOwnPropertyNames(current).forEach((key) => (def[key] = () => (value[key])));
-/******/ 		}
-/******/ 		def['default'] = () => (value);
-/******/ 		__nccwpck_require__.d(ns, def);
-/******/ 		return ns;
-/******/ 	};
-/******/ })();
-/******/ 
 /******/ /* webpack/runtime/define property getters */
 /******/ (() => {
 /******/ 	// define getter functions for harmony exports
@@ -19566,17 +17915,6 @@ exports.visitAsync = visitAsync;
 /******/ 	__nccwpck_require__.o = (obj, prop) => (Object.prototype.hasOwnProperty.call(obj, prop))
 /******/ })();
 /******/ 
-/******/ /* webpack/runtime/make namespace object */
-/******/ (() => {
-/******/ 	// define __esModule on exports
-/******/ 	__nccwpck_require__.r = (exports) => {
-/******/ 		if(typeof Symbol !== 'undefined' && Symbol.toStringTag) {
-/******/ 			Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
-/******/ 		}
-/******/ 		Object.defineProperty(exports, '__esModule', { value: true });
-/******/ 	};
-/******/ })();
-/******/ 
 /******/ /* webpack/runtime/compat */
 /******/ 
 /******/ if (typeof __nccwpck_require__ !== 'undefined') __nccwpck_require__.ab = new URL('.', import.meta.url).pathname.slice(import.meta.url.match(/^file:\/\/\/\w:/) ? 1 : 0, -1) + "/";
@@ -19591,19 +17929,9 @@ __nccwpck_require__.d(__webpack_exports__, {
   "h": () => (/* binding */ ManageAddons)
 });
 
-// NAMESPACE OBJECT: ./node_modules/socket.io-parser/build/esm-debug/index.js
-var build_esm_debug_namespaceObject = {};
-__nccwpck_require__.r(build_esm_debug_namespaceObject);
-__nccwpck_require__.d(build_esm_debug_namespaceObject, {
-  "Decoder": () => (Decoder),
-  "Encoder": () => (Encoder),
-  "PacketType": () => (PacketType),
-  "protocol": () => (build_esm_debug_protocol)
-});
-
 // EXTERNAL MODULE: ./node_modules/yaml/dist/index.js
 var dist = __nccwpck_require__(9392);
-;// CONCATENATED MODULE: ./node_modules/wispjs/dist/wisp_api/apis/index.js
+;// CONCATENATED MODULE: ../wispjs/dist/wisp_api/apis/index.js
 /**
  * The Core of the API, handling low-level operations such as making requests and setting the server UUID
  *
@@ -19705,7 +18033,7 @@ class WispAPICore {
     }
 }
 
-;// CONCATENATED MODULE: ./node_modules/wispjs/dist/wisp_api/apis/allocations.js
+;// CONCATENATED MODULE: ../wispjs/dist/wisp_api/apis/allocations.js
 /**
  * Handles the listing and updating of a Server's IP/Port Allocations
  *
@@ -19739,7 +18067,7 @@ class AllocationsAPI {
     }
 }
 
-;// CONCATENATED MODULE: ./node_modules/wispjs/dist/wisp_api/apis/audit_log.js
+;// CONCATENATED MODULE: ../wispjs/dist/wisp_api/apis/audit_log.js
 /**
  * Interface that handles Listing of all Audit Logs
  *
@@ -19762,7 +18090,7 @@ class AuditLogsAPI {
     }
 }
 
-;// CONCATENATED MODULE: ./node_modules/wispjs/dist/wisp_api/apis/backups.js
+;// CONCATENATED MODULE: ../wispjs/dist/wisp_api/apis/backups.js
 /**
  * Handles basic server backup tasks, such as creating, restoring, and deleting backups
  */
@@ -19857,7 +18185,7 @@ class BackupsAPI {
     }
 }
 
-;// CONCATENATED MODULE: ./node_modules/wispjs/dist/wisp_api/apis/databases.js
+;// CONCATENATED MODULE: ../wispjs/dist/wisp_api/apis/databases.js
 /**
  * Handles Creating, Listing, Updating, and Deleting of Databases for the Server
  *
@@ -19902,7 +18230,7 @@ class DatabasesAPI {
     }
 }
 
-;// CONCATENATED MODULE: ./node_modules/wispjs/dist/wisp_api/apis/fastdl.js
+;// CONCATENATED MODULE: ../wispjs/dist/wisp_api/apis/fastdl.js
 /**
  * Handles the syncing of the FastDL feature
  *
@@ -19925,7 +18253,7 @@ class FastDLAPI {
     }
 }
 
-;// CONCATENATED MODULE: ./node_modules/wispjs/dist/wisp_api/apis/filesystem.js
+;// CONCATENATED MODULE: ../wispjs/dist/wisp_api/apis/filesystem.js
 /**
  * Handles interaction with the Server's File System
  *
@@ -20109,7 +18437,7 @@ class FilesystemAPI {
     }
 }
 
-;// CONCATENATED MODULE: ./node_modules/wispjs/dist/wisp_api/apis/mods.js
+;// CONCATENATED MODULE: ../wispjs/dist/wisp_api/apis/mods.js
 /**
  * Handles Listing and Installating of Mods
  *
@@ -20141,7 +18469,7 @@ class ModsAPI {
     }
 }
 
-;// CONCATENATED MODULE: ./node_modules/wispjs/dist/wisp_api/apis/schedules.js
+;// CONCATENATED MODULE: ../wispjs/dist/wisp_api/apis/schedules.js
 /**
  * Handles interactions with Server Schedules
  *
@@ -20310,7 +18638,7 @@ class SchedulesAPI {
     }
 }
 
-;// CONCATENATED MODULE: ./node_modules/wispjs/dist/wisp_api/apis/servers.js
+;// CONCATENATED MODULE: ../wispjs/dist/wisp_api/apis/servers.js
 /**
  * Handles generic Server interaction, such as Sending Commands, managing Power State, and getting Details
  *
@@ -20388,7 +18716,7 @@ class ServersAPI {
     }
 }
 
-;// CONCATENATED MODULE: ./node_modules/wispjs/dist/wisp_api/apis/startup.js
+;// CONCATENATED MODULE: ../wispjs/dist/wisp_api/apis/startup.js
 /**
  * Handles interaction with Server Startup information
  *
@@ -20425,7 +18753,7 @@ class StartupAPI {
     }
 }
 
-;// CONCATENATED MODULE: ./node_modules/wispjs/dist/wisp_api/apis/subusers.js
+;// CONCATENATED MODULE: ../wispjs/dist/wisp_api/apis/subusers.js
 /**
  * Handles interfacing with the Subusers API
  *
@@ -20514,7 +18842,7 @@ class SubusersAPI {
     }
 }
 
-;// CONCATENATED MODULE: ./node_modules/wispjs/dist/wisp_api/index.js
+;// CONCATENATED MODULE: ../wispjs/dist/wisp_api/index.js
 
 
 
@@ -20555,1099 +18883,61 @@ class WispAPI {
         this.Startup = new StartupAPI(this.core);
         this.Subusers = new SubusersAPI(this.core);
     }
-}
-
-// EXTERNAL MODULE: ./node_modules/xmlhttprequest-ssl/lib/XMLHttpRequest.js
-var lib_XMLHttpRequest = __nccwpck_require__(6169);
-var XMLHttpRequest_namespaceObject = /*#__PURE__*/__nccwpck_require__.t(lib_XMLHttpRequest, 2);
-;// CONCATENATED MODULE: ./node_modules/engine.io-parser/build/esm/commons.js
-const PACKET_TYPES = Object.create(null); // no Map = no polyfill
-PACKET_TYPES["open"] = "0";
-PACKET_TYPES["close"] = "1";
-PACKET_TYPES["ping"] = "2";
-PACKET_TYPES["pong"] = "3";
-PACKET_TYPES["message"] = "4";
-PACKET_TYPES["upgrade"] = "5";
-PACKET_TYPES["noop"] = "6";
-const PACKET_TYPES_REVERSE = Object.create(null);
-Object.keys(PACKET_TYPES).forEach((key) => {
-    PACKET_TYPES_REVERSE[PACKET_TYPES[key]] = key;
-});
-const ERROR_PACKET = { type: "error", data: "parser error" };
-
-
-;// CONCATENATED MODULE: ./node_modules/engine.io-parser/build/esm/encodePacket.js
-
-const encodePacket = ({ type, data }, supportsBinary, callback) => {
-    if (data instanceof ArrayBuffer || ArrayBuffer.isView(data)) {
-        return callback(supportsBinary ? data : "b" + toBuffer(data, true).toString("base64"));
-    }
-    // plain string
-    return callback(PACKET_TYPES[type] + (data || ""));
-};
-const toBuffer = (data, forceBufferConversion) => {
-    if (Buffer.isBuffer(data) ||
-        (data instanceof Uint8Array && !forceBufferConversion)) {
-        return data;
-    }
-    else if (data instanceof ArrayBuffer) {
-        return Buffer.from(data);
-    }
-    else {
-        return Buffer.from(data.buffer, data.byteOffset, data.byteLength);
-    }
-};
-let TEXT_ENCODER;
-function encodePacketToBinary(packet, callback) {
-    if (packet.data instanceof ArrayBuffer || ArrayBuffer.isView(packet.data)) {
-        return callback(toBuffer(packet.data, false));
-    }
-    encodePacket(packet, true, (encoded) => {
-        if (!TEXT_ENCODER) {
-            // lazily created for compatibility with Node.js 10
-            TEXT_ENCODER = new TextEncoder();
-        }
-        callback(TEXT_ENCODER.encode(encoded));
-    });
-}
-
-;// CONCATENATED MODULE: ./node_modules/engine.io-parser/build/esm/decodePacket.js
-
-const decodePacket = (encodedPacket, binaryType) => {
-    if (typeof encodedPacket !== "string") {
-        return {
-            type: "message",
-            data: mapBinary(encodedPacket, binaryType),
-        };
-    }
-    const type = encodedPacket.charAt(0);
-    if (type === "b") {
-        const buffer = Buffer.from(encodedPacket.substring(1), "base64");
-        return {
-            type: "message",
-            data: mapBinary(buffer, binaryType),
-        };
-    }
-    if (!PACKET_TYPES_REVERSE[type]) {
-        return ERROR_PACKET;
-    }
-    return encodedPacket.length > 1
-        ? {
-            type: PACKET_TYPES_REVERSE[type],
-            data: encodedPacket.substring(1),
-        }
-        : {
-            type: PACKET_TYPES_REVERSE[type],
-        };
-};
-const mapBinary = (data, binaryType) => {
-    switch (binaryType) {
-        case "arraybuffer":
-            if (data instanceof ArrayBuffer) {
-                // from WebSocket & binaryType "arraybuffer"
-                return data;
-            }
-            else if (Buffer.isBuffer(data)) {
-                // from HTTP long-polling
-                return data.buffer.slice(data.byteOffset, data.byteOffset + data.byteLength);
-            }
-            else {
-                // from WebTransport (Uint8Array)
-                return data.buffer;
-            }
-        case "nodebuffer":
-        default:
-            if (Buffer.isBuffer(data)) {
-                // from HTTP long-polling or WebSocket & binaryType "nodebuffer" (default)
-                return data;
-            }
-            else {
-                // from WebTransport (Uint8Array)
-                return Buffer.from(data);
-            }
-    }
-};
-
-;// CONCATENATED MODULE: ./node_modules/engine.io-parser/build/esm/index.js
-
-
-
-const SEPARATOR = String.fromCharCode(30); // see https://en.wikipedia.org/wiki/Delimiter#ASCII_delimited_text
-const encodePayload = (packets, callback) => {
-    // some packets may be added to the array while encoding, so the initial length must be saved
-    const length = packets.length;
-    const encodedPackets = new Array(length);
-    let count = 0;
-    packets.forEach((packet, i) => {
-        // force base64 encoding for binary packets
-        encodePacket(packet, false, (encodedPacket) => {
-            encodedPackets[i] = encodedPacket;
-            if (++count === length) {
-                callback(encodedPackets.join(SEPARATOR));
-            }
-        });
-    });
-};
-const decodePayload = (encodedPayload, binaryType) => {
-    const encodedPackets = encodedPayload.split(SEPARATOR);
-    const packets = [];
-    for (let i = 0; i < encodedPackets.length; i++) {
-        const decodedPacket = decodePacket(encodedPackets[i], binaryType);
-        packets.push(decodedPacket);
-        if (decodedPacket.type === "error") {
-            break;
-        }
-    }
-    return packets;
-};
-function createPacketEncoderStream() {
-    return new TransformStream({
-        transform(packet, controller) {
-            encodePacketToBinary(packet, (encodedPacket) => {
-                const payloadLength = encodedPacket.length;
-                let header;
-                // inspired by the WebSocket format: https://developer.mozilla.org/en-US/docs/Web/API/WebSockets_API/Writing_WebSocket_servers#decoding_payload_length
-                if (payloadLength < 126) {
-                    header = new Uint8Array(1);
-                    new DataView(header.buffer).setUint8(0, payloadLength);
-                }
-                else if (payloadLength < 65536) {
-                    header = new Uint8Array(3);
-                    const view = new DataView(header.buffer);
-                    view.setUint8(0, 126);
-                    view.setUint16(1, payloadLength);
-                }
-                else {
-                    header = new Uint8Array(9);
-                    const view = new DataView(header.buffer);
-                    view.setUint8(0, 127);
-                    view.setBigUint64(1, BigInt(payloadLength));
-                }
-                // first bit indicates whether the payload is plain text (0) or binary (1)
-                if (packet.data && typeof packet.data !== "string") {
-                    header[0] |= 0x80;
-                }
-                controller.enqueue(header);
-                controller.enqueue(encodedPacket);
-            });
-        },
-    });
-}
-let TEXT_DECODER;
-function totalLength(chunks) {
-    return chunks.reduce((acc, chunk) => acc + chunk.length, 0);
-}
-function concatChunks(chunks, size) {
-    if (chunks[0].length === size) {
-        return chunks.shift();
-    }
-    const buffer = new Uint8Array(size);
-    let j = 0;
-    for (let i = 0; i < size; i++) {
-        buffer[i] = chunks[0][j++];
-        if (j === chunks[0].length) {
-            chunks.shift();
-            j = 0;
-        }
-    }
-    if (chunks.length && j < chunks[0].length) {
-        chunks[0] = chunks[0].slice(j);
-    }
-    return buffer;
-}
-function createPacketDecoderStream(maxPayload, binaryType) {
-    if (!TEXT_DECODER) {
-        TEXT_DECODER = new TextDecoder();
-    }
-    const chunks = [];
-    let state = 0 /* State.READ_HEADER */;
-    let expectedLength = -1;
-    let isBinary = false;
-    return new TransformStream({
-        transform(chunk, controller) {
-            chunks.push(chunk);
-            while (true) {
-                if (state === 0 /* State.READ_HEADER */) {
-                    if (totalLength(chunks) < 1) {
-                        break;
-                    }
-                    const header = concatChunks(chunks, 1);
-                    isBinary = (header[0] & 0x80) === 0x80;
-                    expectedLength = header[0] & 0x7f;
-                    if (expectedLength < 126) {
-                        state = 3 /* State.READ_PAYLOAD */;
-                    }
-                    else if (expectedLength === 126) {
-                        state = 1 /* State.READ_EXTENDED_LENGTH_16 */;
-                    }
-                    else {
-                        state = 2 /* State.READ_EXTENDED_LENGTH_64 */;
-                    }
-                }
-                else if (state === 1 /* State.READ_EXTENDED_LENGTH_16 */) {
-                    if (totalLength(chunks) < 2) {
-                        break;
-                    }
-                    const headerArray = concatChunks(chunks, 2);
-                    expectedLength = new DataView(headerArray.buffer, headerArray.byteOffset, headerArray.length).getUint16(0);
-                    state = 3 /* State.READ_PAYLOAD */;
-                }
-                else if (state === 2 /* State.READ_EXTENDED_LENGTH_64 */) {
-                    if (totalLength(chunks) < 8) {
-                        break;
-                    }
-                    const headerArray = concatChunks(chunks, 8);
-                    const view = new DataView(headerArray.buffer, headerArray.byteOffset, headerArray.length);
-                    const n = view.getUint32(0);
-                    if (n > Math.pow(2, 53 - 32) - 1) {
-                        // the maximum safe integer in JavaScript is 2^53 - 1
-                        controller.enqueue(ERROR_PACKET);
-                        break;
-                    }
-                    expectedLength = n * Math.pow(2, 32) + view.getUint32(4);
-                    state = 3 /* State.READ_PAYLOAD */;
-                }
-                else {
-                    if (totalLength(chunks) < expectedLength) {
-                        break;
-                    }
-                    const data = concatChunks(chunks, expectedLength);
-                    controller.enqueue(decodePacket(isBinary ? data : TEXT_DECODER.decode(data), binaryType));
-                    state = 0 /* State.READ_HEADER */;
-                }
-                if (expectedLength === 0 || expectedLength > maxPayload) {
-                    controller.enqueue(ERROR_PACKET);
-                    break;
-                }
-            }
-        },
-    });
-}
-const protocol = 4;
-
-
-// EXTERNAL MODULE: ./node_modules/@socket.io/component-emitter/lib/cjs/index.js
-var cjs = __nccwpck_require__(3234);
-;// CONCATENATED MODULE: ./node_modules/engine.io-client/build/esm-debug/globals.node.js
-const nextTick = process.nextTick;
-const globalThisShim = global;
-const defaultBinaryType = "nodebuffer";
-function createCookieJar() {
-    return new CookieJar();
-}
-/**
- * @see https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Set-Cookie
- */
-function parse(setCookieString) {
-    const parts = setCookieString.split("; ");
-    const i = parts[0].indexOf("=");
-    if (i === -1) {
-        return;
-    }
-    const name = parts[0].substring(0, i).trim();
-    if (!name.length) {
-        return;
-    }
-    let value = parts[0].substring(i + 1).trim();
-    if (value.charCodeAt(0) === 0x22) {
-        // remove double quotes
-        value = value.slice(1, -1);
-    }
-    const cookie = {
-        name,
-        value,
-    };
-    for (let j = 1; j < parts.length; j++) {
-        const subParts = parts[j].split("=");
-        if (subParts.length !== 2) {
-            continue;
-        }
-        const key = subParts[0].trim();
-        const value = subParts[1].trim();
-        switch (key) {
-            case "Expires":
-                cookie.expires = new Date(value);
-                break;
-            case "Max-Age":
-                const expiration = new Date();
-                expiration.setUTCSeconds(expiration.getUTCSeconds() + parseInt(value, 10));
-                cookie.expires = expiration;
-                break;
-            default:
-            // ignore other keys
-        }
-    }
-    return cookie;
-}
-class CookieJar {
-    constructor() {
-        this._cookies = new Map();
-    }
-    parseCookies(values) {
-        if (!values) {
-            return;
-        }
-        values.forEach((value) => {
-            const parsed = parse(value);
-            if (parsed) {
-                this._cookies.set(parsed.name, parsed);
-            }
-        });
-    }
-    get cookies() {
-        const now = Date.now();
-        this._cookies.forEach((cookie, name) => {
-            var _a;
-            if (((_a = cookie.expires) === null || _a === void 0 ? void 0 : _a.getTime()) < now) {
-                this._cookies.delete(name);
-            }
-        });
-        return this._cookies.entries();
-    }
-    addCookies(xhr) {
-        const cookies = [];
-        for (const [name, cookie] of this.cookies) {
-            cookies.push(`${name}=${cookie.value}`);
-        }
-        if (cookies.length) {
-            xhr.setDisableHeaderCheck(true);
-            xhr.setRequestHeader("cookie", cookies.join("; "));
-        }
-    }
-    appendCookies(headers) {
-        for (const [name, cookie] of this.cookies) {
-            headers.append("cookie", `${name}=${cookie.value}`);
-        }
-    }
-}
-
-;// CONCATENATED MODULE: ./node_modules/engine.io-client/build/esm-debug/util.js
-
-function pick(obj, ...attr) {
-    return attr.reduce((acc, k) => {
-        if (obj.hasOwnProperty(k)) {
-            acc[k] = obj[k];
-        }
-        return acc;
-    }, {});
-}
-// Keep a reference to the real timeout functions so they can be used when overridden
-const NATIVE_SET_TIMEOUT = globalThisShim.setTimeout;
-const NATIVE_CLEAR_TIMEOUT = globalThisShim.clearTimeout;
-function installTimerFunctions(obj, opts) {
-    if (opts.useNativeTimers) {
-        obj.setTimeoutFn = NATIVE_SET_TIMEOUT.bind(globalThisShim);
-        obj.clearTimeoutFn = NATIVE_CLEAR_TIMEOUT.bind(globalThisShim);
-    }
-    else {
-        obj.setTimeoutFn = globalThisShim.setTimeout.bind(globalThisShim);
-        obj.clearTimeoutFn = globalThisShim.clearTimeout.bind(globalThisShim);
-    }
-}
-// base64 encoded buffers are about 33% bigger (https://en.wikipedia.org/wiki/Base64)
-const BASE64_OVERHEAD = 1.33;
-// we could also have used `new Blob([obj]).size`, but it isn't supported in IE9
-function byteLength(obj) {
-    if (typeof obj === "string") {
-        return utf8Length(obj);
-    }
-    // arraybuffer or blob
-    return Math.ceil((obj.byteLength || obj.size) * BASE64_OVERHEAD);
-}
-function utf8Length(str) {
-    let c = 0, length = 0;
-    for (let i = 0, l = str.length; i < l; i++) {
-        c = str.charCodeAt(i);
-        if (c < 0x80) {
-            length += 1;
-        }
-        else if (c < 0x800) {
-            length += 2;
-        }
-        else if (c < 0xd800 || c >= 0xe000) {
-            length += 3;
-        }
-        else {
-            i++;
-            length += 4;
-        }
-    }
-    return length;
-}
-/**
- * Generates a random 8-characters string.
- */
-function randomString() {
-    return (Date.now().toString(36).substring(3) +
-        Math.random().toString(36).substring(2, 5));
-}
-
-;// CONCATENATED MODULE: ./node_modules/engine.io-client/build/esm-debug/contrib/parseqs.js
-// imported from https://github.com/galkn/querystring
-/**
- * Compiles a querystring
- * Returns string representation of the object
- *
- * @param {Object}
- * @api private
- */
-function encode(obj) {
-    let str = '';
-    for (let i in obj) {
-        if (obj.hasOwnProperty(i)) {
-            if (str.length)
-                str += '&';
-            str += encodeURIComponent(i) + '=' + encodeURIComponent(obj[i]);
-        }
-    }
-    return str;
-}
-/**
- * Parses a simple querystring into an object
- *
- * @param {String} qs
- * @api private
- */
-function decode(qs) {
-    let qry = {};
-    let pairs = qs.split('&');
-    for (let i = 0, l = pairs.length; i < l; i++) {
-        let pair = pairs[i].split('=');
-        qry[decodeURIComponent(pair[0])] = decodeURIComponent(pair[1]);
-    }
-    return qry;
-}
-
-// EXTERNAL MODULE: ./node_modules/debug/src/index.js
-var src = __nccwpck_require__(9046);
-;// CONCATENATED MODULE: ./node_modules/engine.io-client/build/esm-debug/transport.js
-
-
-
-
- // debug()
-const debug = src("engine.io-client:transport"); // debug()
-class TransportError extends Error {
-    constructor(reason, description, context) {
-        super(reason);
-        this.description = description;
-        this.context = context;
-        this.type = "TransportError";
-    }
-}
-class Transport extends cjs/* Emitter */.Q {
     /**
-     * Transport abstract constructor.
+     * The panel domain these API calls target.
      *
-     * @param {Object} opts - options
-     * @protected
+     * @public
      */
-    constructor(opts) {
-        super();
-        this.writable = false;
-        installTimerFunctions(this, opts);
-        this.opts = opts;
-        this.query = opts.query;
-        this.socket = opts.socket;
-        this.supportsBinary = !opts.forceBase64;
-    }
-    /**
-     * Emits an error.
-     *
-     * @param {String} reason
-     * @param description
-     * @param context - the error context
-     * @return {Transport} for chaining
-     * @protected
-     */
-    onError(reason, description, context) {
-        super.emitReserved("error", new TransportError(reason, description, context));
-        return this;
-    }
-    /**
-     * Opens the transport.
-     */
-    open() {
-        this.readyState = "opening";
-        this.doOpen();
-        return this;
-    }
-    /**
-     * Closes the transport.
-     */
-    close() {
-        if (this.readyState === "opening" || this.readyState === "open") {
-            this.doClose();
-            this.onClose();
-        }
-        return this;
-    }
-    /**
-     * Sends multiple packets.
-     *
-     * @param {Array} packets
-     */
-    send(packets) {
-        if (this.readyState === "open") {
-            this.write(packets);
-        }
-        else {
-            // this might happen if the transport was silently closed in the beforeunload event handler
-            debug("transport is not open, discarding packets");
-        }
-    }
-    /**
-     * Called upon open
-     *
-     * @protected
-     */
-    onOpen() {
-        this.readyState = "open";
-        this.writable = true;
-        super.emitReserved("open");
-    }
-    /**
-     * Called with data.
-     *
-     * @param {String} data
-     * @protected
-     */
-    onData(data) {
-        const packet = decodePacket(data, this.socket.binaryType);
-        this.onPacket(packet);
-    }
-    /**
-     * Called with a decoded packet.
-     *
-     * @protected
-     */
-    onPacket(packet) {
-        super.emitReserved("packet", packet);
-    }
-    /**
-     * Called upon close.
-     *
-     * @protected
-     */
-    onClose(details) {
-        this.readyState = "closed";
-        super.emitReserved("close", details);
-    }
-    /**
-     * Pauses the transport, in order not to lose packets during an upgrade.
-     *
-     * @param onPause
-     */
-    pause(onPause) { }
-    createUri(schema, query = {}) {
-        return (schema +
-            "://" +
-            this._hostname() +
-            this._port() +
-            this.opts.path +
-            this._query(query));
-    }
-    _hostname() {
-        const hostname = this.opts.hostname;
-        return hostname.indexOf(":") === -1 ? hostname : "[" + hostname + "]";
-    }
-    _port() {
-        if (this.opts.port &&
-            ((this.opts.secure && Number(this.opts.port !== 443)) ||
-                (!this.opts.secure && Number(this.opts.port) !== 80))) {
-            return ":" + this.opts.port;
-        }
-        else {
-            return "";
-        }
-    }
-    _query(query) {
-        const encodedQuery = encode(query);
-        return encodedQuery.length ? "?" + encodedQuery : "";
+    get domain() {
+        return this.core.domain;
     }
 }
 
-;// CONCATENATED MODULE: ./node_modules/engine.io-client/build/esm-debug/transports/polling.js
+;// CONCATENATED MODULE: ../wispjs/node_modules/ansi-regex/index.js
+function ansiRegex({onlyFirst = false} = {}) {
+	// Valid string terminator sequences are BEL, ESC\, and 0x9c
+	const ST = '(?:\\u0007|\\u001B\\u005C|\\u009C)';
+	const pattern = [
+		`[\\u001B\\u009B][[\\]()#;?]*(?:(?:(?:(?:;[-a-zA-Z\\d\\/#&.:=?%@~_]+)*|[a-zA-Z\\d]+(?:;[-a-zA-Z\\d\\/#&.:=?%@~_]*)*)?${ST})`,
+		'(?:(?:\\d{1,4}(?:;\\d{0,4})*)?[\\dA-PR-TZcf-nq-uy=><~]))',
+	].join('|');
 
-
-
- // debug()
-const polling_debug = src("engine.io-client:polling"); // debug()
-class polling_Polling extends Transport {
-    constructor() {
-        super(...arguments);
-        this._polling = false;
-    }
-    get name() {
-        return "polling";
-    }
-    /**
-     * Opens the socket (triggers polling). We write a PING message to determine
-     * when the transport is open.
-     *
-     * @protected
-     */
-    doOpen() {
-        this._poll();
-    }
-    /**
-     * Pauses polling.
-     *
-     * @param {Function} onPause - callback upon buffers are flushed and transport is paused
-     * @package
-     */
-    pause(onPause) {
-        this.readyState = "pausing";
-        const pause = () => {
-            polling_debug("paused");
-            this.readyState = "paused";
-            onPause();
-        };
-        if (this._polling || !this.writable) {
-            let total = 0;
-            if (this._polling) {
-                polling_debug("we are currently polling - waiting to pause");
-                total++;
-                this.once("pollComplete", function () {
-                    polling_debug("pre-pause polling complete");
-                    --total || pause();
-                });
-            }
-            if (!this.writable) {
-                polling_debug("we are currently writing - waiting to pause");
-                total++;
-                this.once("drain", function () {
-                    polling_debug("pre-pause writing complete");
-                    --total || pause();
-                });
-            }
-        }
-        else {
-            pause();
-        }
-    }
-    /**
-     * Starts polling cycle.
-     *
-     * @private
-     */
-    _poll() {
-        polling_debug("polling");
-        this._polling = true;
-        this.doPoll();
-        this.emitReserved("poll");
-    }
-    /**
-     * Overloads onData to detect payloads.
-     *
-     * @protected
-     */
-    onData(data) {
-        polling_debug("polling got data %s", data);
-        const callback = (packet) => {
-            // if its the first message we consider the transport open
-            if ("opening" === this.readyState && packet.type === "open") {
-                this.onOpen();
-            }
-            // if its a close packet, we close the ongoing requests
-            if ("close" === packet.type) {
-                this.onClose({ description: "transport closed by the server" });
-                return false;
-            }
-            // otherwise bypass onData and handle the message
-            this.onPacket(packet);
-        };
-        // decode payload
-        decodePayload(data, this.socket.binaryType).forEach(callback);
-        // if an event did not trigger closing
-        if ("closed" !== this.readyState) {
-            // if we got data we're not polling
-            this._polling = false;
-            this.emitReserved("pollComplete");
-            if ("open" === this.readyState) {
-                this._poll();
-            }
-            else {
-                polling_debug('ignoring poll - transport state "%s"', this.readyState);
-            }
-        }
-    }
-    /**
-     * For polling, send a close packet.
-     *
-     * @protected
-     */
-    doClose() {
-        const close = () => {
-            polling_debug("writing close packet");
-            this.write([{ type: "close" }]);
-        };
-        if ("open" === this.readyState) {
-            polling_debug("transport open - closing");
-            close();
-        }
-        else {
-            // in case we're trying to close while
-            // handshaking is in progress (GH-164)
-            polling_debug("transport not open - deferring close");
-            this.once("open", close);
-        }
-    }
-    /**
-     * Writes a packets payload.
-     *
-     * @param {Array} packets - data packets
-     * @protected
-     */
-    write(packets) {
-        this.writable = false;
-        encodePayload(packets, (data) => {
-            this.doWrite(data, () => {
-                this.writable = true;
-                this.emitReserved("drain");
-            });
-        });
-    }
-    /**
-     * Generates uri for connection.
-     *
-     * @private
-     */
-    uri() {
-        const schema = this.opts.secure ? "https" : "http";
-        const query = this.query || {};
-        // cache busting is forced
-        if (false !== this.opts.timestampRequests) {
-            query[this.opts.timestampParam] = randomString();
-        }
-        if (!this.supportsBinary && !query.sid) {
-            query.b64 = 1;
-        }
-        return this.createUri(schema, query);
-    }
+	return new RegExp(pattern, onlyFirst ? undefined : 'g');
 }
 
-;// CONCATENATED MODULE: ./node_modules/engine.io-client/build/esm-debug/contrib/has-cors.js
-// imported from https://github.com/component/has-cors
-let value = false;
-try {
-    value = typeof XMLHttpRequest !== 'undefined' &&
-        'withCredentials' in new XMLHttpRequest();
-}
-catch (err) {
-    // if XMLHttp support is disabled in IE then it will throw
-    // when trying to create
-}
-const hasCORS = value;
-
-;// CONCATENATED MODULE: ./node_modules/engine.io-client/build/esm-debug/transports/polling-xhr.js
+;// CONCATENATED MODULE: ../wispjs/node_modules/strip-ansi/index.js
 
 
+const regex = ansiRegex();
 
+function stripAnsi(string) {
+	if (typeof string !== 'string') {
+		throw new TypeError(`Expected a \`string\`, got \`${typeof string}\``);
+	}
 
-
- // debug()
-const polling_xhr_debug = src("engine.io-client:polling"); // debug()
-function empty() { }
-class BaseXHR extends polling_Polling {
-    /**
-     * XHR Polling constructor.
-     *
-     * @param {Object} opts
-     * @package
-     */
-    constructor(opts) {
-        super(opts);
-        if (typeof location !== "undefined") {
-            const isSSL = "https:" === location.protocol;
-            let port = location.port;
-            // some user agents have empty `location.port`
-            if (!port) {
-                port = isSSL ? "443" : "80";
-            }
-            this.xd =
-                (typeof location !== "undefined" &&
-                    opts.hostname !== location.hostname) ||
-                    port !== opts.port;
-        }
-    }
-    /**
-     * Sends data.
-     *
-     * @param {String} data to send.
-     * @param {Function} called upon flush.
-     * @private
-     */
-    doWrite(data, fn) {
-        const req = this.request({
-            method: "POST",
-            data: data,
-        });
-        req.on("success", fn);
-        req.on("error", (xhrStatus, context) => {
-            this.onError("xhr post error", xhrStatus, context);
-        });
-    }
-    /**
-     * Starts a poll cycle.
-     *
-     * @private
-     */
-    doPoll() {
-        polling_xhr_debug("xhr poll");
-        const req = this.request();
-        req.on("data", this.onData.bind(this));
-        req.on("error", (xhrStatus, context) => {
-            this.onError("xhr poll error", xhrStatus, context);
-        });
-        this.pollXhr = req;
-    }
-}
-class Request extends cjs/* Emitter */.Q {
-    /**
-     * Request constructor
-     *
-     * @param {Object} options
-     * @package
-     */
-    constructor(createRequest, uri, opts) {
-        super();
-        this.createRequest = createRequest;
-        installTimerFunctions(this, opts);
-        this._opts = opts;
-        this._method = opts.method || "GET";
-        this._uri = uri;
-        this._data = undefined !== opts.data ? opts.data : null;
-        this._create();
-    }
-    /**
-     * Creates the XHR object and sends the request.
-     *
-     * @private
-     */
-    _create() {
-        var _a;
-        const opts = pick(this._opts, "agent", "pfx", "key", "passphrase", "cert", "ca", "ciphers", "rejectUnauthorized", "autoUnref");
-        opts.xdomain = !!this._opts.xd;
-        const xhr = (this._xhr = this.createRequest(opts));
-        try {
-            polling_xhr_debug("xhr open %s: %s", this._method, this._uri);
-            xhr.open(this._method, this._uri, true);
-            try {
-                if (this._opts.extraHeaders) {
-                    // @ts-ignore
-                    xhr.setDisableHeaderCheck && xhr.setDisableHeaderCheck(true);
-                    for (let i in this._opts.extraHeaders) {
-                        if (this._opts.extraHeaders.hasOwnProperty(i)) {
-                            xhr.setRequestHeader(i, this._opts.extraHeaders[i]);
-                        }
-                    }
-                }
-            }
-            catch (e) { }
-            if ("POST" === this._method) {
-                try {
-                    xhr.setRequestHeader("Content-type", "text/plain;charset=UTF-8");
-                }
-                catch (e) { }
-            }
-            try {
-                xhr.setRequestHeader("Accept", "*/*");
-            }
-            catch (e) { }
-            (_a = this._opts.cookieJar) === null || _a === void 0 ? void 0 : _a.addCookies(xhr);
-            // ie6 check
-            if ("withCredentials" in xhr) {
-                xhr.withCredentials = this._opts.withCredentials;
-            }
-            if (this._opts.requestTimeout) {
-                xhr.timeout = this._opts.requestTimeout;
-            }
-            xhr.onreadystatechange = () => {
-                var _a;
-                if (xhr.readyState === 3) {
-                    (_a = this._opts.cookieJar) === null || _a === void 0 ? void 0 : _a.parseCookies(
-                    // @ts-ignore
-                    xhr.getResponseHeader("set-cookie"));
-                }
-                if (4 !== xhr.readyState)
-                    return;
-                if (200 === xhr.status || 1223 === xhr.status) {
-                    this._onLoad();
-                }
-                else {
-                    // make sure the `error` event handler that's user-set
-                    // does not throw in the same tick and gets caught here
-                    this.setTimeoutFn(() => {
-                        this._onError(typeof xhr.status === "number" ? xhr.status : 0);
-                    }, 0);
-                }
-            };
-            polling_xhr_debug("xhr data %s", this._data);
-            xhr.send(this._data);
-        }
-        catch (e) {
-            // Need to defer since .create() is called directly from the constructor
-            // and thus the 'error' event can only be only bound *after* this exception
-            // occurs.  Therefore, also, we cannot throw here at all.
-            this.setTimeoutFn(() => {
-                this._onError(e);
-            }, 0);
-            return;
-        }
-        if (typeof document !== "undefined") {
-            this._index = Request.requestsCount++;
-            Request.requests[this._index] = this;
-        }
-    }
-    /**
-     * Called upon error.
-     *
-     * @private
-     */
-    _onError(err) {
-        this.emitReserved("error", err, this._xhr);
-        this._cleanup(true);
-    }
-    /**
-     * Cleans up house.
-     *
-     * @private
-     */
-    _cleanup(fromError) {
-        if ("undefined" === typeof this._xhr || null === this._xhr) {
-            return;
-        }
-        this._xhr.onreadystatechange = empty;
-        if (fromError) {
-            try {
-                this._xhr.abort();
-            }
-            catch (e) { }
-        }
-        if (typeof document !== "undefined") {
-            delete Request.requests[this._index];
-        }
-        this._xhr = null;
-    }
-    /**
-     * Called upon load.
-     *
-     * @private
-     */
-    _onLoad() {
-        const data = this._xhr.responseText;
-        if (data !== null) {
-            this.emitReserved("data", data);
-            this.emitReserved("success");
-            this._cleanup();
-        }
-    }
-    /**
-     * Aborts the request.
-     *
-     * @package
-     */
-    abort() {
-        this._cleanup();
-    }
-}
-Request.requestsCount = 0;
-Request.requests = {};
-/**
- * Aborts pending requests when unloading the window. This is needed to prevent
- * memory leaks (e.g. when using IE) and to ensure that no spurious error is
- * emitted.
- */
-if (typeof document !== "undefined") {
-    // @ts-ignore
-    if (typeof attachEvent === "function") {
-        // @ts-ignore
-        attachEvent("onunload", unloadHandler);
-    }
-    else if (typeof addEventListener === "function") {
-        const terminationEvent = "onpagehide" in globalThisShim ? "pagehide" : "unload";
-        addEventListener(terminationEvent, unloadHandler, false);
-    }
-}
-function unloadHandler() {
-    for (let i in Request.requests) {
-        if (Request.requests.hasOwnProperty(i)) {
-            Request.requests[i].abort();
-        }
-    }
-}
-const hasXHR2 = (function () {
-    const xhr = newRequest({
-        xdomain: false,
-    });
-    return xhr && xhr.responseType !== null;
-})();
-/**
- * HTTP long-polling based on the built-in `XMLHttpRequest` object.
- *
- * Usage: browser
- *
- * @see https://developer.mozilla.org/en-US/docs/Web/API/XMLHttpRequest
- */
-class XHR extends (/* unused pure expression or super */ null && (BaseXHR)) {
-    constructor(opts) {
-        super(opts);
-        const forceBase64 = opts && opts.forceBase64;
-        this.supportsBinary = hasXHR2 && !forceBase64;
-    }
-    request(opts = {}) {
-        Object.assign(opts, { xd: this.xd }, this.opts);
-        return new Request(newRequest, this.uri(), opts);
-    }
-}
-function newRequest(opts) {
-    const xdomain = opts.xdomain;
-    // XMLHttpRequest can be disabled on IE
-    try {
-        if ("undefined" !== typeof XMLHttpRequest && (!xdomain || hasCORS)) {
-            return new XMLHttpRequest();
-        }
-    }
-    catch (e) { }
-    if (!xdomain) {
-        try {
-            return new globalThisShim[["Active"].concat("Object").join("X")]("Microsoft.XMLHTTP");
-        }
-        catch (e) { }
-    }
+	// Even though the regex is global, we don't need to reset the `.lastIndex`
+	// because unlike `.exec()` and `.test()`, `.replace()` does it automatically
+	// and doing it manually has a performance penalty.
+	return string.replace(regex, '');
 }
 
-;// CONCATENATED MODULE: ./node_modules/engine.io-client/build/esm-debug/transports/polling-xhr.node.js
-
-
-const polling_xhr_node_XMLHttpRequest = lib_XMLHttpRequest || XMLHttpRequest_namespaceObject;
-/**
- * HTTP long-polling based on the `XMLHttpRequest` object provided by the `xmlhttprequest-ssl` package.
- *
- * Usage: Node.js, Deno (compat), Bun (compat)
- *
- * @see https://developer.mozilla.org/en-US/docs/Web/API/XMLHttpRequest
- */
-class polling_xhr_node_XHR extends BaseXHR {
-    request(opts = {}) {
-        var _a;
-        Object.assign(opts, { xd: this.xd, cookieJar: (_a = this.socket) === null || _a === void 0 ? void 0 : _a._cookieJar }, this.opts);
-        return new Request((opts) => new polling_xhr_node_XMLHttpRequest(opts), this.uri(), opts);
-    }
-}
-
-// EXTERNAL MODULE: ./node_modules/ws/lib/stream.js
-var stream = __nccwpck_require__(6572);
-// EXTERNAL MODULE: ./node_modules/ws/lib/receiver.js
-var receiver = __nccwpck_require__(3558);
-// EXTERNAL MODULE: ./node_modules/ws/lib/sender.js
-var sender = __nccwpck_require__(3016);
-// EXTERNAL MODULE: ./node_modules/ws/lib/websocket.js
-var websocket = __nccwpck_require__(1071);
-// EXTERNAL MODULE: ./node_modules/ws/lib/websocket-server.js
-var websocket_server = __nccwpck_require__(6989);
-;// CONCATENATED MODULE: ./node_modules/ws/wrapper.mjs
+// EXTERNAL MODULE: ../wispjs/node_modules/ws/lib/stream.js
+var stream = __nccwpck_require__(5251);
+// EXTERNAL MODULE: ../wispjs/node_modules/ws/lib/extension.js
+var extension = __nccwpck_require__(9286);
+// EXTERNAL MODULE: ../wispjs/node_modules/ws/lib/permessage-deflate.js
+var permessage_deflate = __nccwpck_require__(2959);
+// EXTERNAL MODULE: ../wispjs/node_modules/ws/lib/receiver.js
+var receiver = __nccwpck_require__(2123);
+// EXTERNAL MODULE: ../wispjs/node_modules/ws/lib/sender.js
+var sender = __nccwpck_require__(446);
+// EXTERNAL MODULE: ../wispjs/node_modules/ws/lib/subprotocol.js
+var subprotocol = __nccwpck_require__(202);
+// EXTERNAL MODULE: ../wispjs/node_modules/ws/lib/websocket.js
+var websocket = __nccwpck_require__(1710);
+// EXTERNAL MODULE: ../wispjs/node_modules/ws/lib/websocket-server.js
+var websocket_server = __nccwpck_require__(4938);
+;// CONCATENATED MODULE: ../wispjs/node_modules/ws/wrapper.mjs
 
 
 
@@ -21655,3133 +18945,147 @@ var websocket_server = __nccwpck_require__(6989);
 
 
 
-/* harmony default export */ const wrapper = ((/* unused pure expression or super */ null && (WebSocket)));
-
-;// CONCATENATED MODULE: ./node_modules/engine.io-client/build/esm-debug/transports/websocket.js
 
 
 
 
- // debug()
-const websocket_debug = src("engine.io-client:websocket"); // debug()
-// detect ReactNative environment
-const isReactNative = typeof navigator !== "undefined" &&
-    typeof navigator.product === "string" &&
-    navigator.product.toLowerCase() === "reactnative";
-class BaseWS extends Transport {
-    get name() {
-        return "websocket";
-    }
-    doOpen() {
-        const uri = this.uri();
-        const protocols = this.opts.protocols;
-        // React Native only supports the 'headers' option, and will print a warning if anything else is passed
-        const opts = isReactNative
-            ? {}
-            : pick(this.opts, "agent", "perMessageDeflate", "pfx", "key", "passphrase", "cert", "ca", "ciphers", "rejectUnauthorized", "localAddress", "protocolVersion", "origin", "maxPayload", "family", "checkServerIdentity");
-        if (this.opts.extraHeaders) {
-            opts.headers = this.opts.extraHeaders;
-        }
-        try {
-            this.ws = this.createSocket(uri, protocols, opts);
-        }
-        catch (err) {
-            return this.emitReserved("error", err);
-        }
-        this.ws.binaryType = this.socket.binaryType;
-        this.addEventListeners();
-    }
-    /**
-     * Adds event listeners to the socket
-     *
-     * @private
-     */
-    addEventListeners() {
-        this.ws.onopen = () => {
-            if (this.opts.autoUnref) {
-                this.ws._socket.unref();
-            }
-            this.onOpen();
-        };
-        this.ws.onclose = (closeEvent) => this.onClose({
-            description: "websocket connection closed",
-            context: closeEvent,
-        });
-        this.ws.onmessage = (ev) => this.onData(ev.data);
-        this.ws.onerror = (e) => this.onError("websocket error", e);
-    }
-    write(packets) {
-        this.writable = false;
-        // encodePacket efficient as it uses WS framing
-        // no need for encodePayload
-        for (let i = 0; i < packets.length; i++) {
-            const packet = packets[i];
-            const lastPacket = i === packets.length - 1;
-            encodePacket(packet, this.supportsBinary, (data) => {
-                // Sometimes the websocket has already been closed but the browser didn't
-                // have a chance of informing us about it yet, in that case send will
-                // throw an error
-                try {
-                    this.doWrite(packet, data);
-                }
-                catch (e) {
-                    websocket_debug("websocket closed before onclose event");
-                }
-                if (lastPacket) {
-                    // fake drain
-                    // defer to next tick to allow Socket to clear writeBuffer
-                    nextTick(() => {
-                        this.writable = true;
-                        this.emitReserved("drain");
-                    }, this.setTimeoutFn);
-                }
-            });
-        }
-    }
-    doClose() {
-        if (typeof this.ws !== "undefined") {
-            this.ws.onerror = () => { };
-            this.ws.close();
-            this.ws = null;
-        }
-    }
-    /**
-     * Generates uri for connection.
-     *
-     * @private
-     */
-    uri() {
-        const schema = this.opts.secure ? "wss" : "ws";
-        const query = this.query || {};
-        // append timestamp to URI
-        if (this.opts.timestampRequests) {
-            query[this.opts.timestampParam] = randomString();
-        }
-        // communicate binary support capabilities
-        if (!this.supportsBinary) {
-            query.b64 = 1;
-        }
-        return this.createUri(schema, query);
-    }
-}
-const WebSocketCtor = globalThisShim.WebSocket || globalThisShim.MozWebSocket;
-/**
- * WebSocket transport based on the built-in `WebSocket` object.
- *
- * Usage: browser, Node.js (since v21), Deno, Bun
- *
- * @see https://developer.mozilla.org/en-US/docs/Web/API/WebSocket
- * @see https://caniuse.com/mdn-api_websocket
- * @see https://nodejs.org/api/globals.html#websocket
- */
-class WS extends (/* unused pure expression or super */ null && (BaseWS)) {
-    createSocket(uri, protocols, opts) {
-        return !isReactNative
-            ? protocols
-                ? new WebSocketCtor(uri, protocols)
-                : new WebSocketCtor(uri)
-            : new WebSocketCtor(uri, protocols, opts);
-    }
-    doWrite(_packet, data) {
-        this.ws.send(data);
-    }
-}
+/* harmony default export */ const wrapper = (websocket);
 
-;// CONCATENATED MODULE: ./node_modules/engine.io-client/build/esm-debug/transports/websocket.node.js
+;// CONCATENATED MODULE: external "node:events"
+const external_node_events_namespaceObject = __WEBPACK_EXTERNAL_createRequire(import.meta.url)("node:events");
+;// CONCATENATED MODULE: ../wispjs/dist/wisp_socket/ws_adapter.js
 
 
 /**
- * WebSocket transport based on the `WebSocket` object provided by the `ws` package.
+ * A thin adapter that exposes a Socket.IO-like event API over a plain `ws`
+ * WebSocket.
  *
- * Usage: Node.js, Deno (compat), Bun (compat)
+ * The new backend speaks a simple JSON envelope rather than the Socket.IO /
+ * Engine.IO framing:
  *
- * @see https://developer.mozilla.org/en-US/docs/Web/API/WebSocket
- * @see https://caniuse.com/mdn-api_websocket
+ * ```json
+ * { "event": "console output", "args": ["...line..."] }
+ * ```
+ *
+ * `args` is omitted entirely when an event carries no payload
+ * (e.g. `{ "event": "auth success" }`).
+ *
+ * This class translates between that envelope and the `.on/.once/.off/.emit`
+ * surface the rest of the codebase already uses, so the calling code barely
+ * changes.
+ *
+ * @remarks
+ * We *compose* an EventEmitter instead of extending one on purpose: extending
+ * it would mean overriding `emit()`, which EventEmitter also calls internally
+ * (e.g. the `newListener` event) — so every `.on()` would try to send a frame
+ * to the server. Composition keeps "emit to the wire" and "fire local
+ * listeners" cleanly separate.
+ *
+ * @internal
  */
-class websocket_node_WS extends BaseWS {
-    createSocket(uri, protocols, opts) {
-        var _a;
-        if ((_a = this.socket) === null || _a === void 0 ? void 0 : _a._cookieJar) {
-            opts.headers = opts.headers || {};
-            opts.headers.cookie =
-                typeof opts.headers.cookie === "string"
-                    ? [opts.headers.cookie]
-                    : opts.headers.cookie || [];
-            for (const [name, cookie] of this.socket._cookieJar.cookies) {
-                opts.headers.cookie.push(`${name}=${cookie.value}`);
-            }
-        }
-        return new websocket(uri, protocols, opts);
-    }
-    doWrite(packet, data) {
-        const opts = {};
-        if (packet.options) {
-            opts.compress = packet.options.compress;
-        }
-        if (this.opts.perMessageDeflate) {
-            const len = 
-            // @ts-ignore
-            "string" === typeof data ? Buffer.byteLength(data) : data.length;
-            if (len < this.opts.perMessageDeflate.threshold) {
-                opts.compress = false;
-            }
-        }
-        this.ws.send(data, opts);
-    }
-}
-
-;// CONCATENATED MODULE: ./node_modules/engine.io-client/build/esm-debug/transports/webtransport.js
-
-
-
- // debug()
-const webtransport_debug = src("engine.io-client:webtransport"); // debug()
-/**
- * WebTransport transport based on the built-in `WebTransport` object.
- *
- * Usage: browser, Node.js (with the `@fails-components/webtransport` package)
- *
- * @see https://developer.mozilla.org/en-US/docs/Web/API/WebTransport
- * @see https://caniuse.com/webtransport
- */
-class WT extends Transport {
-    get name() {
-        return "webtransport";
-    }
-    doOpen() {
-        try {
-            // @ts-ignore
-            this._transport = new WebTransport(this.createUri("https"), this.opts.transportOptions[this.name]);
-        }
-        catch (err) {
-            return this.emitReserved("error", err);
-        }
-        this._transport.closed
-            .then(() => {
-            webtransport_debug("transport closed gracefully");
-            this.onClose();
-        })
-            .catch((err) => {
-            webtransport_debug("transport closed due to %s", err);
-            this.onError("webtransport error", err);
-        });
-        // note: we could have used async/await, but that would require some additional polyfills
-        this._transport.ready.then(() => {
-            this._transport.createBidirectionalStream().then((stream) => {
-                const decoderStream = createPacketDecoderStream(Number.MAX_SAFE_INTEGER, this.socket.binaryType);
-                const reader = stream.readable.pipeThrough(decoderStream).getReader();
-                const encoderStream = createPacketEncoderStream();
-                encoderStream.readable.pipeTo(stream.writable);
-                this._writer = encoderStream.writable.getWriter();
-                const read = () => {
-                    reader
-                        .read()
-                        .then(({ done, value }) => {
-                        if (done) {
-                            webtransport_debug("session is closed");
-                            return;
-                        }
-                        webtransport_debug("received chunk: %o", value);
-                        this.onPacket(value);
-                        read();
-                    })
-                        .catch((err) => {
-                        webtransport_debug("an error occurred while reading: %s", err);
-                    });
-                };
-                read();
-                const packet = { type: "open" };
-                if (this.query.sid) {
-                    packet.data = `{"sid":"${this.query.sid}"}`;
-                }
-                this._writer.write(packet).then(() => this.onOpen());
-            });
-        });
-    }
-    write(packets) {
-        this.writable = false;
-        for (let i = 0; i < packets.length; i++) {
-            const packet = packets[i];
-            const lastPacket = i === packets.length - 1;
-            this._writer.write(packet).then(() => {
-                if (lastPacket) {
-                    nextTick(() => {
-                        this.writable = true;
-                        this.emitReserved("drain");
-                    }, this.setTimeoutFn);
-                }
-            });
-        }
-    }
-    doClose() {
-        var _a;
-        (_a = this._transport) === null || _a === void 0 ? void 0 : _a.close();
-    }
-}
-
-;// CONCATENATED MODULE: ./node_modules/engine.io-client/build/esm-debug/transports/index.js
-
-
-
-const transports = {
-    websocket: websocket_node_WS,
-    webtransport: WT,
-    polling: polling_xhr_node_XHR,
-};
-
-;// CONCATENATED MODULE: ./node_modules/engine.io-client/build/esm-debug/contrib/parseuri.js
-// imported from https://github.com/galkn/parseuri
-/**
- * Parses a URI
- *
- * Note: we could also have used the built-in URL object, but it isn't supported on all platforms.
- *
- * See:
- * - https://developer.mozilla.org/en-US/docs/Web/API/URL
- * - https://caniuse.com/url
- * - https://www.rfc-editor.org/rfc/rfc3986#appendix-B
- *
- * History of the parse() method:
- * - first commit: https://github.com/socketio/socket.io-client/commit/4ee1d5d94b3906a9c052b459f1a818b15f38f91c
- * - export into its own module: https://github.com/socketio/engine.io-client/commit/de2c561e4564efeb78f1bdb1ba39ef81b2822cb3
- * - reimport: https://github.com/socketio/engine.io-client/commit/df32277c3f6d622eec5ed09f493cae3f3391d242
- *
- * @author Steven Levithan <stevenlevithan.com> (MIT license)
- * @api private
- */
-const re = /^(?:(?![^:@\/?#]+:[^:@\/]*@)(http|https|ws|wss):\/\/)?((?:(([^:@\/?#]*)(?::([^:@\/?#]*))?)?@)?((?:[a-f0-9]{0,4}:){2,7}[a-f0-9]{0,4}|[^:\/?#]*)(?::(\d*))?)(((\/(?:[^?#](?![^?#\/]*\.[^?#\/.]+(?:[?#]|$)))*\/?)?([^?#\/]*))(?:\?([^#]*))?(?:#(.*))?)/;
-const parts = [
-    'source', 'protocol', 'authority', 'userInfo', 'user', 'password', 'host', 'port', 'relative', 'path', 'directory', 'file', 'query', 'anchor'
-];
-function parseuri_parse(str) {
-    if (str.length > 8000) {
-        throw "URI too long";
-    }
-    const src = str, b = str.indexOf('['), e = str.indexOf(']');
-    if (b != -1 && e != -1) {
-        str = str.substring(0, b) + str.substring(b, e).replace(/:/g, ';') + str.substring(e, str.length);
-    }
-    let m = re.exec(str || ''), uri = {}, i = 14;
-    while (i--) {
-        uri[parts[i]] = m[i] || '';
-    }
-    if (b != -1 && e != -1) {
-        uri.source = src;
-        uri.host = uri.host.substring(1, uri.host.length - 1).replace(/;/g, ':');
-        uri.authority = uri.authority.replace('[', '').replace(']', '').replace(/;/g, ':');
-        uri.ipv6uri = true;
-    }
-    uri.pathNames = pathNames(uri, uri['path']);
-    uri.queryKey = queryKey(uri, uri['query']);
-    return uri;
-}
-function pathNames(obj, path) {
-    const regx = /\/{2,9}/g, names = path.replace(regx, "/").split("/");
-    if (path.slice(0, 1) == '/' || path.length === 0) {
-        names.splice(0, 1);
-    }
-    if (path.slice(-1) == '/') {
-        names.splice(names.length - 1, 1);
-    }
-    return names;
-}
-function queryKey(uri, query) {
-    const data = {};
-    query.replace(/(?:^|&)([^&=]*)=?([^&]*)/g, function ($0, $1, $2) {
-        if ($1) {
-            data[$1] = $2;
-        }
-    });
-    return data;
-}
-
-;// CONCATENATED MODULE: ./node_modules/engine.io-client/build/esm-debug/socket.js
-
-
-
-
-
-
-
- // debug()
-const socket_debug = src("engine.io-client:socket"); // debug()
-const withEventListeners = typeof addEventListener === "function" &&
-    typeof removeEventListener === "function";
-const OFFLINE_EVENT_LISTENERS = [];
-if (withEventListeners) {
-    // within a ServiceWorker, any event handler for the 'offline' event must be added on the initial evaluation of the
-    // script, so we create one single event listener here which will forward the event to the socket instances
-    addEventListener("offline", () => {
-        socket_debug("closing %d connection(s) because the network was lost", OFFLINE_EVENT_LISTENERS.length);
-        OFFLINE_EVENT_LISTENERS.forEach((listener) => listener());
-    }, false);
-}
-/**
- * This class provides a WebSocket-like interface to connect to an Engine.IO server. The connection will be established
- * with one of the available low-level transports, like HTTP long-polling, WebSocket or WebTransport.
- *
- * This class comes without upgrade mechanism, which means that it will keep the first low-level transport that
- * successfully establishes the connection.
- *
- * In order to allow tree-shaking, there are no transports included, that's why the `transports` option is mandatory.
- *
- * @example
- * import { SocketWithoutUpgrade, WebSocket } from "engine.io-client";
- *
- * const socket = new SocketWithoutUpgrade({
- *   transports: [WebSocket]
- * });
- *
- * socket.on("open", () => {
- *   socket.send("hello");
- * });
- *
- * @see SocketWithUpgrade
- * @see Socket
- */
-class SocketWithoutUpgrade extends cjs/* Emitter */.Q {
-    /**
-     * Socket constructor.
-     *
-     * @param {String|Object} uri - uri or options
-     * @param {Object} opts - options
-     */
-    constructor(uri, opts) {
-        super();
-        this.binaryType = defaultBinaryType;
-        this.writeBuffer = [];
-        this._prevBufferLen = 0;
-        this._pingInterval = -1;
-        this._pingTimeout = -1;
-        this._maxPayload = -1;
-        /**
-         * The expiration timestamp of the {@link _pingTimeoutTimer} object is tracked, in case the timer is throttled and the
-         * callback is not fired on time. This can happen for example when a laptop is suspended or when a phone is locked.
-         */
-        this._pingTimeoutTime = Infinity;
-        if (uri && "object" === typeof uri) {
-            opts = uri;
-            uri = null;
-        }
-        if (uri) {
-            const parsedUri = parseuri_parse(uri);
-            opts.hostname = parsedUri.host;
-            opts.secure =
-                parsedUri.protocol === "https" || parsedUri.protocol === "wss";
-            opts.port = parsedUri.port;
-            if (parsedUri.query)
-                opts.query = parsedUri.query;
-        }
-        else if (opts.host) {
-            opts.hostname = parseuri_parse(opts.host).host;
-        }
-        installTimerFunctions(this, opts);
-        this.secure =
-            null != opts.secure
-                ? opts.secure
-                : typeof location !== "undefined" && "https:" === location.protocol;
-        if (opts.hostname && !opts.port) {
-            // if no port is specified manually, use the protocol default
-            opts.port = this.secure ? "443" : "80";
-        }
-        this.hostname =
-            opts.hostname ||
-                (typeof location !== "undefined" ? location.hostname : "localhost");
-        this.port =
-            opts.port ||
-                (typeof location !== "undefined" && location.port
-                    ? location.port
-                    : this.secure
-                        ? "443"
-                        : "80");
-        this.transports = [];
-        this._transportsByName = {};
-        opts.transports.forEach((t) => {
-            const transportName = t.prototype.name;
-            this.transports.push(transportName);
-            this._transportsByName[transportName] = t;
-        });
-        this.opts = Object.assign({
-            path: "/engine.io",
-            agent: false,
-            withCredentials: false,
-            upgrade: true,
-            timestampParam: "t",
-            rememberUpgrade: false,
-            addTrailingSlash: true,
-            rejectUnauthorized: true,
-            perMessageDeflate: {
-                threshold: 1024,
-            },
-            transportOptions: {},
-            closeOnBeforeunload: false,
-        }, opts);
-        this.opts.path =
-            this.opts.path.replace(/\/$/, "") +
-                (this.opts.addTrailingSlash ? "/" : "");
-        if (typeof this.opts.query === "string") {
-            this.opts.query = decode(this.opts.query);
-        }
-        if (withEventListeners) {
-            if (this.opts.closeOnBeforeunload) {
-                // Firefox closes the connection when the "beforeunload" event is emitted but not Chrome. This event listener
-                // ensures every browser behaves the same (no "disconnect" event at the Socket.IO level when the page is
-                // closed/reloaded)
-                this._beforeunloadEventListener = () => {
-                    if (this.transport) {
-                        // silently close the transport
-                        this.transport.removeAllListeners();
-                        this.transport.close();
-                    }
-                };
-                addEventListener("beforeunload", this._beforeunloadEventListener, false);
-            }
-            if (this.hostname !== "localhost") {
-                socket_debug("adding listener for the 'offline' event");
-                this._offlineEventListener = () => {
-                    this._onClose("transport close", {
-                        description: "network connection lost",
-                    });
-                };
-                OFFLINE_EVENT_LISTENERS.push(this._offlineEventListener);
-            }
-        }
-        if (this.opts.withCredentials) {
-            this._cookieJar = createCookieJar();
-        }
-        this._open();
+class WispWebSocket {
+    constructor(url, opts = {}) {
+        this.emitter = new external_node_events_namespaceObject.EventEmitter();
+        this.url = url;
+        this.origin = opts.origin;
+        // The pool registers a handful of listeners per worker; silence the
+        // default 10-listener warning.
+        this.emitter.setMaxListeners(0);
     }
     /**
-     * Creates transport of the given type.
-     *
-     * @param {String} name - transport name
-     * @return {Transport}
-     * @private
-     */
-    createTransport(name) {
-        socket_debug('creating transport "%s"', name);
-        const query = Object.assign({}, this.opts.query);
-        // append engine.io protocol identifier
-        query.EIO = protocol;
-        // transport name
-        query.transport = name;
-        // session id if we already have one
-        if (this.id)
-            query.sid = this.id;
-        const opts = Object.assign({}, this.opts, {
-            query,
-            socket: this,
-            hostname: this.hostname,
-            secure: this.secure,
-            port: this.port,
-        }, this.opts.transportOptions[name]);
-        socket_debug("options: %j", opts);
-        return new this._transportsByName[name](opts);
-    }
-    /**
-     * Initializes transport to use and starts probe.
-     *
-     * @private
-     */
-    _open() {
-        if (this.transports.length === 0) {
-            // Emit error on next tick so it can be listened to
-            this.setTimeoutFn(() => {
-                this.emitReserved("error", "No transports available");
-            }, 0);
-            return;
-        }
-        const transportName = this.opts.rememberUpgrade &&
-            SocketWithoutUpgrade.priorWebsocketSuccess &&
-            this.transports.indexOf("websocket") !== -1
-            ? "websocket"
-            : this.transports[0];
-        this.readyState = "opening";
-        const transport = this.createTransport(transportName);
-        transport.open();
-        this.setTransport(transport);
-    }
-    /**
-     * Sets the current transport. Disables the existing one (if any).
-     *
-     * @private
-     */
-    setTransport(transport) {
-        socket_debug("setting transport %s", transport.name);
-        if (this.transport) {
-            socket_debug("clearing existing transport %s", this.transport.name);
-            this.transport.removeAllListeners();
-        }
-        // set up transport
-        this.transport = transport;
-        // set up transport listeners
-        transport
-            .on("drain", this._onDrain.bind(this))
-            .on("packet", this._onPacket.bind(this))
-            .on("error", this._onError.bind(this))
-            .on("close", (reason) => this._onClose("transport close", reason));
-    }
-    /**
-     * Called when connection is deemed open.
-     *
-     * @private
-     */
-    onOpen() {
-        socket_debug("socket open");
-        this.readyState = "open";
-        SocketWithoutUpgrade.priorWebsocketSuccess =
-            "websocket" === this.transport.name;
-        this.emitReserved("open");
-        this.flush();
-    }
-    /**
-     * Handles a packet.
-     *
-     * @private
-     */
-    _onPacket(packet) {
-        if ("opening" === this.readyState ||
-            "open" === this.readyState ||
-            "closing" === this.readyState) {
-            socket_debug('socket receive: type "%s", data "%s"', packet.type, packet.data);
-            this.emitReserved("packet", packet);
-            // Socket is live - any packet counts
-            this.emitReserved("heartbeat");
-            switch (packet.type) {
-                case "open":
-                    this.onHandshake(JSON.parse(packet.data));
-                    break;
-                case "ping":
-                    this._sendPacket("pong");
-                    this.emitReserved("ping");
-                    this.emitReserved("pong");
-                    this._resetPingTimeout();
-                    break;
-                case "error":
-                    const err = new Error("server error");
-                    // @ts-ignore
-                    err.code = packet.data;
-                    this._onError(err);
-                    break;
-                case "message":
-                    this.emitReserved("data", packet.data);
-                    this.emitReserved("message", packet.data);
-                    break;
-            }
-        }
-        else {
-            socket_debug('packet received with socket readyState "%s"', this.readyState);
-        }
-    }
-    /**
-     * Called upon handshake completion.
-     *
-     * @param {Object} data - handshake obj
-     * @private
-     */
-    onHandshake(data) {
-        this.emitReserved("handshake", data);
-        this.id = data.sid;
-        this.transport.query.sid = data.sid;
-        this._pingInterval = data.pingInterval;
-        this._pingTimeout = data.pingTimeout;
-        this._maxPayload = data.maxPayload;
-        this.onOpen();
-        // In case open handler closes socket
-        if ("closed" === this.readyState)
-            return;
-        this._resetPingTimeout();
-    }
-    /**
-     * Sets and resets ping timeout timer based on server pings.
-     *
-     * @private
-     */
-    _resetPingTimeout() {
-        this.clearTimeoutFn(this._pingTimeoutTimer);
-        const delay = this._pingInterval + this._pingTimeout;
-        this._pingTimeoutTime = Date.now() + delay;
-        this._pingTimeoutTimer = this.setTimeoutFn(() => {
-            this._onClose("ping timeout");
-        }, delay);
-        if (this.opts.autoUnref) {
-            this._pingTimeoutTimer.unref();
-        }
-    }
-    /**
-     * Called on `drain` event
-     *
-     * @private
-     */
-    _onDrain() {
-        this.writeBuffer.splice(0, this._prevBufferLen);
-        // setting prevBufferLen = 0 is very important
-        // for example, when upgrading, upgrade packet is sent over,
-        // and a nonzero prevBufferLen could cause problems on `drain`
-        this._prevBufferLen = 0;
-        if (0 === this.writeBuffer.length) {
-            this.emitReserved("drain");
-        }
-        else {
-            this.flush();
-        }
-    }
-    /**
-     * Flush write buffers.
-     *
-     * @private
-     */
-    flush() {
-        if ("closed" !== this.readyState &&
-            this.transport.writable &&
-            !this.upgrading &&
-            this.writeBuffer.length) {
-            const packets = this._getWritablePackets();
-            socket_debug("flushing %d packets in socket", packets.length);
-            this.transport.send(packets);
-            // keep track of current length of writeBuffer
-            // splice writeBuffer and callbackBuffer on `drain`
-            this._prevBufferLen = packets.length;
-            this.emitReserved("flush");
-        }
-    }
-    /**
-     * Ensure the encoded size of the writeBuffer is below the maxPayload value sent by the server (only for HTTP
-     * long-polling)
-     *
-     * @private
-     */
-    _getWritablePackets() {
-        const shouldCheckPayloadSize = this._maxPayload &&
-            this.transport.name === "polling" &&
-            this.writeBuffer.length > 1;
-        if (!shouldCheckPayloadSize) {
-            return this.writeBuffer;
-        }
-        let payloadSize = 1; // first packet type
-        for (let i = 0; i < this.writeBuffer.length; i++) {
-            const data = this.writeBuffer[i].data;
-            if (data) {
-                payloadSize += byteLength(data);
-            }
-            if (i > 0 && payloadSize > this._maxPayload) {
-                socket_debug("only send %d out of %d packets", i, this.writeBuffer.length);
-                return this.writeBuffer.slice(0, i);
-            }
-            payloadSize += 2; // separator + packet type
-        }
-        socket_debug("payload size is %d (max: %d)", payloadSize, this._maxPayload);
-        return this.writeBuffer;
-    }
-    /**
-     * Checks whether the heartbeat timer has expired but the socket has not yet been notified.
-     *
-     * Note: this method is private for now because it does not really fit the WebSocket API, but if we put it in the
-     * `write()` method then the message would not be buffered by the Socket.IO client.
-     *
-     * @return {boolean}
-     * @private
-     */
-    /* private */ _hasPingExpired() {
-        if (!this._pingTimeoutTime)
-            return true;
-        const hasExpired = Date.now() > this._pingTimeoutTime;
-        if (hasExpired) {
-            socket_debug("throttled timer detected, scheduling connection close");
-            this._pingTimeoutTime = 0;
-            nextTick(() => {
-                this._onClose("ping timeout");
-            }, this.setTimeoutFn);
-        }
-        return hasExpired;
-    }
-    /**
-     * Sends a message.
-     *
-     * @param {String} msg - message.
-     * @param {Object} options.
-     * @param {Function} fn - callback function.
-     * @return {Socket} for chaining.
-     */
-    write(msg, options, fn) {
-        this._sendPacket("message", msg, options, fn);
-        return this;
-    }
-    /**
-     * Sends a message. Alias of {@link Socket#write}.
-     *
-     * @param {String} msg - message.
-     * @param {Object} options.
-     * @param {Function} fn - callback function.
-     * @return {Socket} for chaining.
-     */
-    send(msg, options, fn) {
-        this._sendPacket("message", msg, options, fn);
-        return this;
-    }
-    /**
-     * Sends a packet.
-     *
-     * @param {String} type: packet type.
-     * @param {String} data.
-     * @param {Object} options.
-     * @param {Function} fn - callback function.
-     * @private
-     */
-    _sendPacket(type, data, options, fn) {
-        if ("function" === typeof data) {
-            fn = data;
-            data = undefined;
-        }
-        if ("function" === typeof options) {
-            fn = options;
-            options = null;
-        }
-        if ("closing" === this.readyState || "closed" === this.readyState) {
-            return;
-        }
-        options = options || {};
-        options.compress = false !== options.compress;
-        const packet = {
-            type: type,
-            data: data,
-            options: options,
-        };
-        this.emitReserved("packetCreate", packet);
-        this.writeBuffer.push(packet);
-        if (fn)
-            this.once("flush", fn);
-        this.flush();
-    }
-    /**
-     * Closes the connection.
-     */
-    close() {
-        const close = () => {
-            this._onClose("forced close");
-            socket_debug("socket closing - telling transport to close");
-            this.transport.close();
-        };
-        const cleanupAndClose = () => {
-            this.off("upgrade", cleanupAndClose);
-            this.off("upgradeError", cleanupAndClose);
-            close();
-        };
-        const waitForUpgrade = () => {
-            // wait for upgrade to finish since we can't send packets while pausing a transport
-            this.once("upgrade", cleanupAndClose);
-            this.once("upgradeError", cleanupAndClose);
-        };
-        if ("opening" === this.readyState || "open" === this.readyState) {
-            this.readyState = "closing";
-            if (this.writeBuffer.length) {
-                this.once("drain", () => {
-                    if (this.upgrading) {
-                        waitForUpgrade();
-                    }
-                    else {
-                        close();
-                    }
-                });
-            }
-            else if (this.upgrading) {
-                waitForUpgrade();
-            }
-            else {
-                close();
-            }
-        }
-        return this;
-    }
-    /**
-     * Called upon transport error
-     *
-     * @private
-     */
-    _onError(err) {
-        socket_debug("socket error %j", err);
-        SocketWithoutUpgrade.priorWebsocketSuccess = false;
-        if (this.opts.tryAllTransports &&
-            this.transports.length > 1 &&
-            this.readyState === "opening") {
-            socket_debug("trying next transport");
-            this.transports.shift();
-            return this._open();
-        }
-        this.emitReserved("error", err);
-        this._onClose("transport error", err);
-    }
-    /**
-     * Called upon transport close.
-     *
-     * @private
-     */
-    _onClose(reason, description) {
-        if ("opening" === this.readyState ||
-            "open" === this.readyState ||
-            "closing" === this.readyState) {
-            socket_debug('socket close with reason: "%s"', reason);
-            // clear timers
-            this.clearTimeoutFn(this._pingTimeoutTimer);
-            // stop event from firing again for transport
-            this.transport.removeAllListeners("close");
-            // ensure transport won't stay open
-            this.transport.close();
-            // ignore further transport communication
-            this.transport.removeAllListeners();
-            if (withEventListeners) {
-                if (this._beforeunloadEventListener) {
-                    removeEventListener("beforeunload", this._beforeunloadEventListener, false);
-                }
-                if (this._offlineEventListener) {
-                    const i = OFFLINE_EVENT_LISTENERS.indexOf(this._offlineEventListener);
-                    if (i !== -1) {
-                        socket_debug("removing listener for the 'offline' event");
-                        OFFLINE_EVENT_LISTENERS.splice(i, 1);
-                    }
-                }
-            }
-            // set ready state
-            this.readyState = "closed";
-            // clear session id
-            this.id = null;
-            // emit close event
-            this.emitReserved("close", reason, description);
-            // clean buffers after, so users can still
-            // grab the buffers on `close` event
-            this.writeBuffer = [];
-            this._prevBufferLen = 0;
-        }
-    }
-}
-SocketWithoutUpgrade.protocol = protocol;
-/**
- * This class provides a WebSocket-like interface to connect to an Engine.IO server. The connection will be established
- * with one of the available low-level transports, like HTTP long-polling, WebSocket or WebTransport.
- *
- * This class comes with an upgrade mechanism, which means that once the connection is established with the first
- * low-level transport, it will try to upgrade to a better transport.
- *
- * In order to allow tree-shaking, there are no transports included, that's why the `transports` option is mandatory.
- *
- * @example
- * import { SocketWithUpgrade, WebSocket } from "engine.io-client";
- *
- * const socket = new SocketWithUpgrade({
- *   transports: [WebSocket]
- * });
- *
- * socket.on("open", () => {
- *   socket.send("hello");
- * });
- *
- * @see SocketWithoutUpgrade
- * @see Socket
- */
-class SocketWithUpgrade extends SocketWithoutUpgrade {
-    constructor() {
-        super(...arguments);
-        this._upgrades = [];
-    }
-    onOpen() {
-        super.onOpen();
-        if ("open" === this.readyState && this.opts.upgrade) {
-            socket_debug("starting upgrade probes");
-            for (let i = 0; i < this._upgrades.length; i++) {
-                this._probe(this._upgrades[i]);
-            }
-        }
-    }
-    /**
-     * Probes a transport.
-     *
-     * @param {String} name - transport name
-     * @private
-     */
-    _probe(name) {
-        socket_debug('probing transport "%s"', name);
-        let transport = this.createTransport(name);
-        let failed = false;
-        SocketWithoutUpgrade.priorWebsocketSuccess = false;
-        const onTransportOpen = () => {
-            if (failed)
-                return;
-            socket_debug('probe transport "%s" opened', name);
-            transport.send([{ type: "ping", data: "probe" }]);
-            transport.once("packet", (msg) => {
-                if (failed)
-                    return;
-                if ("pong" === msg.type && "probe" === msg.data) {
-                    socket_debug('probe transport "%s" pong', name);
-                    this.upgrading = true;
-                    this.emitReserved("upgrading", transport);
-                    if (!transport)
-                        return;
-                    SocketWithoutUpgrade.priorWebsocketSuccess =
-                        "websocket" === transport.name;
-                    socket_debug('pausing current transport "%s"', this.transport.name);
-                    this.transport.pause(() => {
-                        if (failed)
-                            return;
-                        if ("closed" === this.readyState)
-                            return;
-                        socket_debug("changing transport and sending upgrade packet");
-                        cleanup();
-                        this.setTransport(transport);
-                        transport.send([{ type: "upgrade" }]);
-                        this.emitReserved("upgrade", transport);
-                        transport = null;
-                        this.upgrading = false;
-                        this.flush();
-                    });
-                }
-                else {
-                    socket_debug('probe transport "%s" failed', name);
-                    const err = new Error("probe error");
-                    // @ts-ignore
-                    err.transport = transport.name;
-                    this.emitReserved("upgradeError", err);
-                }
-            });
-        };
-        function freezeTransport() {
-            if (failed)
-                return;
-            // Any callback called by transport should be ignored since now
-            failed = true;
-            cleanup();
-            transport.close();
-            transport = null;
-        }
-        // Handle any error that happens while probing
-        const onerror = (err) => {
-            const error = new Error("probe error: " + err);
-            // @ts-ignore
-            error.transport = transport.name;
-            freezeTransport();
-            socket_debug('probe transport "%s" failed because of error: %s', name, err);
-            this.emitReserved("upgradeError", error);
-        };
-        function onTransportClose() {
-            onerror("transport closed");
-        }
-        // When the socket is closed while we're probing
-        function onclose() {
-            onerror("socket closed");
-        }
-        // When the socket is upgraded while we're probing
-        function onupgrade(to) {
-            if (transport && to.name !== transport.name) {
-                socket_debug('"%s" works - aborting "%s"', to.name, transport.name);
-                freezeTransport();
-            }
-        }
-        // Remove all listeners on the transport and on self
-        const cleanup = () => {
-            transport.removeListener("open", onTransportOpen);
-            transport.removeListener("error", onerror);
-            transport.removeListener("close", onTransportClose);
-            this.off("close", onclose);
-            this.off("upgrading", onupgrade);
-        };
-        transport.once("open", onTransportOpen);
-        transport.once("error", onerror);
-        transport.once("close", onTransportClose);
-        this.once("close", onclose);
-        this.once("upgrading", onupgrade);
-        if (this._upgrades.indexOf("webtransport") !== -1 &&
-            name !== "webtransport") {
-            // favor WebTransport
-            this.setTimeoutFn(() => {
-                if (!failed) {
-                    transport.open();
-                }
-            }, 200);
-        }
-        else {
-            transport.open();
-        }
-    }
-    onHandshake(data) {
-        this._upgrades = this._filterUpgrades(data.upgrades);
-        super.onHandshake(data);
-    }
-    /**
-     * Filters upgrades, returning only those matching client transports.
-     *
-     * @param {Array} upgrades - server upgrades
-     * @private
-     */
-    _filterUpgrades(upgrades) {
-        const filteredUpgrades = [];
-        for (let i = 0; i < upgrades.length; i++) {
-            if (~this.transports.indexOf(upgrades[i]))
-                filteredUpgrades.push(upgrades[i]);
-        }
-        return filteredUpgrades;
-    }
-}
-/**
- * This class provides a WebSocket-like interface to connect to an Engine.IO server. The connection will be established
- * with one of the available low-level transports, like HTTP long-polling, WebSocket or WebTransport.
- *
- * This class comes with an upgrade mechanism, which means that once the connection is established with the first
- * low-level transport, it will try to upgrade to a better transport.
- *
- * @example
- * import { Socket } from "engine.io-client";
- *
- * const socket = new Socket();
- *
- * socket.on("open", () => {
- *   socket.send("hello");
- * });
- *
- * @see SocketWithoutUpgrade
- * @see SocketWithUpgrade
- */
-class Socket extends SocketWithUpgrade {
-    constructor(uri, opts = {}) {
-        const o = typeof uri === "object" ? uri : opts;
-        if (!o.transports ||
-            (o.transports && typeof o.transports[0] === "string")) {
-            o.transports = (o.transports || ["polling", "websocket", "webtransport"])
-                .map((transportName) => transports[transportName])
-                .filter((t) => !!t);
-        }
-        super(uri, o);
-    }
-}
-
-;// CONCATENATED MODULE: ./node_modules/engine.io-client/build/esm-debug/transports/polling-fetch.js
-
-/**
- * HTTP long-polling based on the built-in `fetch()` method.
- *
- * Usage: browser, Node.js (since v18), Deno, Bun
- *
- * @see https://developer.mozilla.org/en-US/docs/Web/API/fetch
- * @see https://caniuse.com/fetch
- * @see https://nodejs.org/api/globals.html#fetch
- */
-class Fetch extends (/* unused pure expression or super */ null && (Polling)) {
-    doPoll() {
-        this._fetch()
-            .then((res) => {
-            if (!res.ok) {
-                return this.onError("fetch read error", res.status, res);
-            }
-            res.text().then((data) => this.onData(data));
-        })
-            .catch((err) => {
-            this.onError("fetch read error", err);
-        });
-    }
-    doWrite(data, callback) {
-        this._fetch(data)
-            .then((res) => {
-            if (!res.ok) {
-                return this.onError("fetch write error", res.status, res);
-            }
-            callback();
-        })
-            .catch((err) => {
-            this.onError("fetch write error", err);
-        });
-    }
-    _fetch(data) {
-        var _a;
-        const isPost = data !== undefined;
-        const headers = new Headers(this.opts.extraHeaders);
-        if (isPost) {
-            headers.set("content-type", "text/plain;charset=UTF-8");
-        }
-        (_a = this.socket._cookieJar) === null || _a === void 0 ? void 0 : _a.appendCookies(headers);
-        return fetch(this.uri(), {
-            method: isPost ? "POST" : "GET",
-            body: isPost ? data : null,
-            headers,
-            credentials: this.opts.withCredentials ? "include" : "omit",
-        }).then((res) => {
-            var _a;
-            // @ts-ignore getSetCookie() was added in Node.js v19.7.0
-            (_a = this.socket._cookieJar) === null || _a === void 0 ? void 0 : _a.parseCookies(res.headers.getSetCookie());
-            return res;
-        });
-    }
-}
-
-;// CONCATENATED MODULE: ./node_modules/engine.io-client/build/esm-debug/index.js
-
-
-
-const esm_debug_protocol = Socket.protocol;
-
-
-
-
-
-
-
-
-
-
-
-
-;// CONCATENATED MODULE: ./node_modules/socket.io-client/build/esm-debug/url.js
-
- // debug()
-const url_debug = src("socket.io-client:url"); // debug()
-/**
- * URL parser.
- *
- * @param uri - url
- * @param path - the request path of the connection
- * @param loc - An object meant to mimic window.location.
- *        Defaults to window.location.
- * @public
- */
-function url(uri, path = "", loc) {
-    let obj = uri;
-    // default to window.location
-    loc = loc || (typeof location !== "undefined" && location);
-    if (null == uri)
-        uri = loc.protocol + "//" + loc.host;
-    // relative path support
-    if (typeof uri === "string") {
-        if ("/" === uri.charAt(0)) {
-            if ("/" === uri.charAt(1)) {
-                uri = loc.protocol + uri;
-            }
-            else {
-                uri = loc.host + uri;
-            }
-        }
-        if (!/^(https?|wss?):\/\//.test(uri)) {
-            url_debug("protocol-less url %s", uri);
-            if ("undefined" !== typeof loc) {
-                uri = loc.protocol + "//" + uri;
-            }
-            else {
-                uri = "https://" + uri;
-            }
-        }
-        // parse
-        url_debug("parse %s", uri);
-        obj = parseuri_parse(uri);
-    }
-    // make sure we treat `localhost:80` and `localhost` equally
-    if (!obj.port) {
-        if (/^(http|ws)$/.test(obj.protocol)) {
-            obj.port = "80";
-        }
-        else if (/^(http|ws)s$/.test(obj.protocol)) {
-            obj.port = "443";
-        }
-    }
-    obj.path = obj.path || "/";
-    const ipv6 = obj.host.indexOf(":") !== -1;
-    const host = ipv6 ? "[" + obj.host + "]" : obj.host;
-    // define unique id
-    obj.id = obj.protocol + "://" + host + ":" + obj.port + path;
-    // define href
-    obj.href =
-        obj.protocol +
-            "://" +
-            host +
-            (loc && loc.port === obj.port ? "" : ":" + obj.port);
-    return obj;
-}
-
-;// CONCATENATED MODULE: ./node_modules/socket.io-parser/build/esm-debug/is-binary.js
-const withNativeArrayBuffer = typeof ArrayBuffer === "function";
-const isView = (obj) => {
-    return typeof ArrayBuffer.isView === "function"
-        ? ArrayBuffer.isView(obj)
-        : obj.buffer instanceof ArrayBuffer;
-};
-const is_binary_toString = Object.prototype.toString;
-const withNativeBlob = typeof Blob === "function" ||
-    (typeof Blob !== "undefined" &&
-        is_binary_toString.call(Blob) === "[object BlobConstructor]");
-const withNativeFile = typeof File === "function" ||
-    (typeof File !== "undefined" &&
-        is_binary_toString.call(File) === "[object FileConstructor]");
-/**
- * Returns true if obj is a Buffer, an ArrayBuffer, a Blob or a File.
- *
- * @private
- */
-function isBinary(obj) {
-    return ((withNativeArrayBuffer && (obj instanceof ArrayBuffer || isView(obj))) ||
-        (withNativeBlob && obj instanceof Blob) ||
-        (withNativeFile && obj instanceof File));
-}
-function hasBinary(obj, toJSON) {
-    if (!obj || typeof obj !== "object") {
-        return false;
-    }
-    if (Array.isArray(obj)) {
-        for (let i = 0, l = obj.length; i < l; i++) {
-            if (hasBinary(obj[i])) {
-                return true;
-            }
-        }
-        return false;
-    }
-    if (isBinary(obj)) {
-        return true;
-    }
-    if (obj.toJSON &&
-        typeof obj.toJSON === "function" &&
-        arguments.length === 1) {
-        return hasBinary(obj.toJSON(), true);
-    }
-    for (const key in obj) {
-        if (Object.prototype.hasOwnProperty.call(obj, key) && hasBinary(obj[key])) {
-            return true;
-        }
-    }
-    return false;
-}
-
-;// CONCATENATED MODULE: ./node_modules/socket.io-parser/build/esm-debug/binary.js
-
-/**
- * Replaces every Buffer | ArrayBuffer | Blob | File in packet with a numbered placeholder.
- *
- * @param {Object} packet - socket.io event packet
- * @return {Object} with deconstructed packet and list of buffers
- * @public
- */
-function deconstructPacket(packet) {
-    const buffers = [];
-    const packetData = packet.data;
-    const pack = packet;
-    pack.data = _deconstructPacket(packetData, buffers);
-    pack.attachments = buffers.length; // number of binary 'attachments'
-    return { packet: pack, buffers: buffers };
-}
-function _deconstructPacket(data, buffers) {
-    if (!data)
-        return data;
-    if (isBinary(data)) {
-        const placeholder = { _placeholder: true, num: buffers.length };
-        buffers.push(data);
-        return placeholder;
-    }
-    else if (Array.isArray(data)) {
-        const newData = new Array(data.length);
-        for (let i = 0; i < data.length; i++) {
-            newData[i] = _deconstructPacket(data[i], buffers);
-        }
-        return newData;
-    }
-    else if (typeof data === "object" && !(data instanceof Date)) {
-        const newData = {};
-        for (const key in data) {
-            if (Object.prototype.hasOwnProperty.call(data, key)) {
-                newData[key] = _deconstructPacket(data[key], buffers);
-            }
-        }
-        return newData;
-    }
-    return data;
-}
-/**
- * Reconstructs a binary packet from its placeholder packet and buffers
- *
- * @param {Object} packet - event packet with placeholders
- * @param {Array} buffers - binary buffers to put in placeholder positions
- * @return {Object} reconstructed packet
- * @public
- */
-function reconstructPacket(packet, buffers) {
-    packet.data = _reconstructPacket(packet.data, buffers);
-    delete packet.attachments; // no longer useful
-    return packet;
-}
-function _reconstructPacket(data, buffers) {
-    if (!data)
-        return data;
-    if (data && data._placeholder === true) {
-        const isIndexValid = typeof data.num === "number" &&
-            data.num >= 0 &&
-            data.num < buffers.length;
-        if (isIndexValid) {
-            return buffers[data.num]; // appropriate buffer (should be natural order anyway)
-        }
-        else {
-            throw new Error("illegal attachments");
-        }
-    }
-    else if (Array.isArray(data)) {
-        for (let i = 0; i < data.length; i++) {
-            data[i] = _reconstructPacket(data[i], buffers);
-        }
-    }
-    else if (typeof data === "object") {
-        for (const key in data) {
-            if (Object.prototype.hasOwnProperty.call(data, key)) {
-                data[key] = _reconstructPacket(data[key], buffers);
-            }
-        }
-    }
-    return data;
-}
-
-;// CONCATENATED MODULE: ./node_modules/socket.io-parser/build/esm-debug/index.js
-
-
-
- // debug()
-const esm_debug_debug = src("socket.io-parser"); // debug()
-/**
- * These strings must not be used as event names, as they have a special meaning.
- */
-const RESERVED_EVENTS = [
-    "connect",
-    "connect_error",
-    "disconnect",
-    "disconnecting",
-    "newListener",
-    "removeListener", // used by the Node.js EventEmitter
-];
-/**
- * Protocol version.
- *
- * @public
- */
-const build_esm_debug_protocol = 5;
-var PacketType;
-(function (PacketType) {
-    PacketType[PacketType["CONNECT"] = 0] = "CONNECT";
-    PacketType[PacketType["DISCONNECT"] = 1] = "DISCONNECT";
-    PacketType[PacketType["EVENT"] = 2] = "EVENT";
-    PacketType[PacketType["ACK"] = 3] = "ACK";
-    PacketType[PacketType["CONNECT_ERROR"] = 4] = "CONNECT_ERROR";
-    PacketType[PacketType["BINARY_EVENT"] = 5] = "BINARY_EVENT";
-    PacketType[PacketType["BINARY_ACK"] = 6] = "BINARY_ACK";
-})(PacketType || (PacketType = {}));
-/**
- * A socket.io Encoder instance
- */
-class Encoder {
-    /**
-     * Encoder constructor
-     *
-     * @param {function} replacer - custom replacer to pass down to JSON.parse
-     */
-    constructor(replacer) {
-        this.replacer = replacer;
-    }
-    /**
-     * Encode a packet as a single string if non-binary, or as a
-     * buffer sequence, depending on packet type.
-     *
-     * @param {Object} obj - packet object
-     */
-    encode(obj) {
-        esm_debug_debug("encoding packet %j", obj);
-        if (obj.type === PacketType.EVENT || obj.type === PacketType.ACK) {
-            if (hasBinary(obj)) {
-                return this.encodeAsBinary({
-                    type: obj.type === PacketType.EVENT
-                        ? PacketType.BINARY_EVENT
-                        : PacketType.BINARY_ACK,
-                    nsp: obj.nsp,
-                    data: obj.data,
-                    id: obj.id,
-                });
-            }
-        }
-        return [this.encodeAsString(obj)];
-    }
-    /**
-     * Encode packet as string.
-     */
-    encodeAsString(obj) {
-        // first is type
-        let str = "" + obj.type;
-        // attachments if we have them
-        if (obj.type === PacketType.BINARY_EVENT ||
-            obj.type === PacketType.BINARY_ACK) {
-            str += obj.attachments + "-";
-        }
-        // if we have a namespace other than `/`
-        // we append it followed by a comma `,`
-        if (obj.nsp && "/" !== obj.nsp) {
-            str += obj.nsp + ",";
-        }
-        // immediately followed by the id
-        if (null != obj.id) {
-            str += obj.id;
-        }
-        // json data
-        if (null != obj.data) {
-            str += JSON.stringify(obj.data, this.replacer);
-        }
-        esm_debug_debug("encoded %j as %s", obj, str);
-        return str;
-    }
-    /**
-     * Encode packet as 'buffer sequence' by removing blobs, and
-     * deconstructing packet into object with placeholders and
-     * a list of buffers.
-     */
-    encodeAsBinary(obj) {
-        const deconstruction = deconstructPacket(obj);
-        const pack = this.encodeAsString(deconstruction.packet);
-        const buffers = deconstruction.buffers;
-        buffers.unshift(pack); // add packet info to beginning of data list
-        return buffers; // write all the buffers
-    }
-}
-// see https://stackoverflow.com/questions/8511281/check-if-a-value-is-an-object-in-javascript
-function isObject(value) {
-    return Object.prototype.toString.call(value) === "[object Object]";
-}
-/**
- * A socket.io Decoder instance
- *
- * @return {Object} decoder
- */
-class Decoder extends cjs/* Emitter */.Q {
-    /**
-     * Decoder constructor
-     *
-     * @param {function} reviver - custom reviver to pass down to JSON.stringify
-     */
-    constructor(reviver) {
-        super();
-        this.reviver = reviver;
-    }
-    /**
-     * Decodes an encoded packet string into packet JSON.
-     *
-     * @param {String} obj - encoded packet
-     */
-    add(obj) {
-        let packet;
-        if (typeof obj === "string") {
-            if (this.reconstructor) {
-                throw new Error("got plaintext data when reconstructing a packet");
-            }
-            packet = this.decodeString(obj);
-            const isBinaryEvent = packet.type === PacketType.BINARY_EVENT;
-            if (isBinaryEvent || packet.type === PacketType.BINARY_ACK) {
-                packet.type = isBinaryEvent ? PacketType.EVENT : PacketType.ACK;
-                // binary packet's json
-                this.reconstructor = new BinaryReconstructor(packet);
-                // no attachments, labeled binary but no binary data to follow
-                if (packet.attachments === 0) {
-                    super.emitReserved("decoded", packet);
-                }
-            }
-            else {
-                // non-binary full packet
-                super.emitReserved("decoded", packet);
-            }
-        }
-        else if (isBinary(obj) || obj.base64) {
-            // raw binary data
-            if (!this.reconstructor) {
-                throw new Error("got binary data when not reconstructing a packet");
-            }
-            else {
-                packet = this.reconstructor.takeBinaryData(obj);
-                if (packet) {
-                    // received final buffer
-                    this.reconstructor = null;
-                    super.emitReserved("decoded", packet);
-                }
-            }
-        }
-        else {
-            throw new Error("Unknown type: " + obj);
-        }
-    }
-    /**
-     * Decode a packet String (JSON data)
-     *
-     * @param {String} str
-     * @return {Object} packet
-     */
-    decodeString(str) {
-        let i = 0;
-        // look up type
-        const p = {
-            type: Number(str.charAt(0)),
-        };
-        if (PacketType[p.type] === undefined) {
-            throw new Error("unknown packet type " + p.type);
-        }
-        // look up attachments if type binary
-        if (p.type === PacketType.BINARY_EVENT ||
-            p.type === PacketType.BINARY_ACK) {
-            const start = i + 1;
-            while (str.charAt(++i) !== "-" && i != str.length) { }
-            const buf = str.substring(start, i);
-            if (buf != Number(buf) || str.charAt(i) !== "-") {
-                throw new Error("Illegal attachments");
-            }
-            p.attachments = Number(buf);
-        }
-        // look up namespace (if any)
-        if ("/" === str.charAt(i + 1)) {
-            const start = i + 1;
-            while (++i) {
-                const c = str.charAt(i);
-                if ("," === c)
-                    break;
-                if (i === str.length)
-                    break;
-            }
-            p.nsp = str.substring(start, i);
-        }
-        else {
-            p.nsp = "/";
-        }
-        // look up id
-        const next = str.charAt(i + 1);
-        if ("" !== next && Number(next) == next) {
-            const start = i + 1;
-            while (++i) {
-                const c = str.charAt(i);
-                if (null == c || Number(c) != c) {
-                    --i;
-                    break;
-                }
-                if (i === str.length)
-                    break;
-            }
-            p.id = Number(str.substring(start, i + 1));
-        }
-        // look up json data
-        if (str.charAt(++i)) {
-            const payload = this.tryParse(str.substr(i));
-            if (Decoder.isPayloadValid(p.type, payload)) {
-                p.data = payload;
-            }
-            else {
-                throw new Error("invalid payload");
-            }
-        }
-        esm_debug_debug("decoded %s as %j", str, p);
-        return p;
-    }
-    tryParse(str) {
-        try {
-            return JSON.parse(str, this.reviver);
-        }
-        catch (e) {
-            return false;
-        }
-    }
-    static isPayloadValid(type, payload) {
-        switch (type) {
-            case PacketType.CONNECT:
-                return isObject(payload);
-            case PacketType.DISCONNECT:
-                return payload === undefined;
-            case PacketType.CONNECT_ERROR:
-                return typeof payload === "string" || isObject(payload);
-            case PacketType.EVENT:
-            case PacketType.BINARY_EVENT:
-                return (Array.isArray(payload) &&
-                    (typeof payload[0] === "number" ||
-                        (typeof payload[0] === "string" &&
-                            RESERVED_EVENTS.indexOf(payload[0]) === -1)));
-            case PacketType.ACK:
-            case PacketType.BINARY_ACK:
-                return Array.isArray(payload);
-        }
-    }
-    /**
-     * Deallocates a parser's resources
-     */
-    destroy() {
-        if (this.reconstructor) {
-            this.reconstructor.finishedReconstruction();
-            this.reconstructor = null;
-        }
-    }
-}
-/**
- * A manager of a binary event's 'buffer sequence'. Should
- * be constructed whenever a packet of type BINARY_EVENT is
- * decoded.
- *
- * @param {Object} packet
- * @return {BinaryReconstructor} initialized reconstructor
- */
-class BinaryReconstructor {
-    constructor(packet) {
-        this.packet = packet;
-        this.buffers = [];
-        this.reconPack = packet;
-    }
-    /**
-     * Method to be called when binary data received from connection
-     * after a BINARY_EVENT packet.
-     *
-     * @param {Buffer | ArrayBuffer} binData - the raw binary data received
-     * @return {null | Object} returns null if more binary data is expected or
-     *   a reconstructed packet object if all buffers have been received.
-     */
-    takeBinaryData(binData) {
-        this.buffers.push(binData);
-        if (this.buffers.length === this.reconPack.attachments) {
-            // done with buffer list
-            const packet = reconstructPacket(this.reconPack, this.buffers);
-            this.finishedReconstruction();
-            return packet;
-        }
-        return null;
-    }
-    /**
-     * Cleans up binary packet reconstruction variables.
-     */
-    finishedReconstruction() {
-        this.reconPack = null;
-        this.buffers = [];
-    }
-}
-
-;// CONCATENATED MODULE: ./node_modules/socket.io-client/build/esm-debug/on.js
-function on(obj, ev, fn) {
-    obj.on(ev, fn);
-    return function subDestroy() {
-        obj.off(ev, fn);
-    };
-}
-
-;// CONCATENATED MODULE: ./node_modules/socket.io-client/build/esm-debug/socket.js
-
-
-
- // debug()
-const esm_debug_socket_debug = src("socket.io-client:socket"); // debug()
-/**
- * Internal events.
- * These events can't be emitted by the user.
- */
-const socket_RESERVED_EVENTS = Object.freeze({
-    connect: 1,
-    connect_error: 1,
-    disconnect: 1,
-    disconnecting: 1,
-    // EventEmitter reserved events: https://nodejs.org/api/events.html#events_event_newlistener
-    newListener: 1,
-    removeListener: 1,
-});
-/**
- * A Socket is the fundamental class for interacting with the server.
- *
- * A Socket belongs to a certain Namespace (by default /) and uses an underlying {@link Manager} to communicate.
- *
- * @example
- * const socket = io();
- *
- * socket.on("connect", () => {
- *   console.log("connected");
- * });
- *
- * // send an event to the server
- * socket.emit("foo", "bar");
- *
- * socket.on("foobar", () => {
- *   // an event was received from the server
- * });
- *
- * // upon disconnection
- * socket.on("disconnect", (reason) => {
- *   console.log(`disconnected due to ${reason}`);
- * });
- */
-class socket_Socket extends cjs/* Emitter */.Q {
-    /**
-     * `Socket` constructor.
-     */
-    constructor(io, nsp, opts) {
-        super();
-        /**
-         * Whether the socket is currently connected to the server.
-         *
-         * @example
-         * const socket = io();
-         *
-         * socket.on("connect", () => {
-         *   console.log(socket.connected); // true
-         * });
-         *
-         * socket.on("disconnect", () => {
-         *   console.log(socket.connected); // false
-         * });
-         */
-        this.connected = false;
-        /**
-         * Whether the connection state was recovered after a temporary disconnection. In that case, any missed packets will
-         * be transmitted by the server.
-         */
-        this.recovered = false;
-        /**
-         * Buffer for packets received before the CONNECT packet
-         */
-        this.receiveBuffer = [];
-        /**
-         * Buffer for packets that will be sent once the socket is connected
-         */
-        this.sendBuffer = [];
-        /**
-         * The queue of packets to be sent with retry in case of failure.
-         *
-         * Packets are sent one by one, each waiting for the server acknowledgement, in order to guarantee the delivery order.
-         * @private
-         */
-        this._queue = [];
-        /**
-         * A sequence to generate the ID of the {@link QueuedPacket}.
-         * @private
-         */
-        this._queueSeq = 0;
-        this.ids = 0;
-        /**
-         * A map containing acknowledgement handlers.
-         *
-         * The `withError` attribute is used to differentiate handlers that accept an error as first argument:
-         *
-         * - `socket.emit("test", (err, value) => { ... })` with `ackTimeout` option
-         * - `socket.timeout(5000).emit("test", (err, value) => { ... })`
-         * - `const value = await socket.emitWithAck("test")`
-         *
-         * From those that don't:
-         *
-         * - `socket.emit("test", (value) => { ... });`
-         *
-         * In the first case, the handlers will be called with an error when:
-         *
-         * - the timeout is reached
-         * - the socket gets disconnected
-         *
-         * In the second case, the handlers will be simply discarded upon disconnection, since the client will never receive
-         * an acknowledgement from the server.
-         *
-         * @private
-         */
-        this.acks = {};
-        this.flags = {};
-        this.io = io;
-        this.nsp = nsp;
-        if (opts && opts.auth) {
-            this.auth = opts.auth;
-        }
-        this._opts = Object.assign({}, opts);
-        if (this.io._autoConnect)
-            this.open();
-    }
-    /**
-     * Whether the socket is currently disconnected
-     *
-     * @example
-     * const socket = io();
-     *
-     * socket.on("connect", () => {
-     *   console.log(socket.disconnected); // false
-     * });
-     *
-     * socket.on("disconnect", () => {
-     *   console.log(socket.disconnected); // true
-     * });
-     */
-    get disconnected() {
-        return !this.connected;
-    }
-    /**
-     * Subscribe to open, close and packet events
-     *
-     * @private
-     */
-    subEvents() {
-        if (this.subs)
-            return;
-        const io = this.io;
-        this.subs = [
-            on(io, "open", this.onopen.bind(this)),
-            on(io, "packet", this.onpacket.bind(this)),
-            on(io, "error", this.onerror.bind(this)),
-            on(io, "close", this.onclose.bind(this)),
-        ];
-    }
-    /**
-     * Whether the Socket will try to reconnect when its Manager connects or reconnects.
-     *
-     * @example
-     * const socket = io();
-     *
-     * console.log(socket.active); // true
-     *
-     * socket.on("disconnect", (reason) => {
-     *   if (reason === "io server disconnect") {
-     *     // the disconnection was initiated by the server, you need to manually reconnect
-     *     console.log(socket.active); // false
-     *   }
-     *   // else the socket will automatically try to reconnect
-     *   console.log(socket.active); // true
-     * });
-     */
-    get active() {
-        return !!this.subs;
-    }
-    /**
-     * "Opens" the socket.
-     *
-     * @example
-     * const socket = io({
-     *   autoConnect: false
-     * });
-     *
-     * socket.connect();
+     * Opens the underlying WebSocket and wires up frame translation.
      */
     connect() {
-        if (this.connected)
-            return this;
-        this.subEvents();
-        if (!this.io["_reconnecting"])
-            this.io.open(); // ensure open
-        if ("open" === this.io._readyState)
-            this.onopen();
-        return this;
-    }
-    /**
-     * Alias for {@link connect()}.
-     */
-    open() {
-        return this.connect();
-    }
-    /**
-     * Sends a `message` event.
-     *
-     * This method mimics the WebSocket.send() method.
-     *
-     * @see https://developer.mozilla.org/en-US/docs/Web/API/WebSocket/send
-     *
-     * @example
-     * socket.send("hello");
-     *
-     * // this is equivalent to
-     * socket.emit("message", "hello");
-     *
-     * @return self
-     */
-    send(...args) {
-        args.unshift("message");
-        this.emit.apply(this, args);
-        return this;
-    }
-    /**
-     * Override `emit`.
-     * If the event is in `events`, it's emitted normally.
-     *
-     * @example
-     * socket.emit("hello", "world");
-     *
-     * // all serializable datastructures are supported (no need to call JSON.stringify)
-     * socket.emit("hello", 1, "2", { 3: ["4"], 5: Uint8Array.from([6]) });
-     *
-     * // with an acknowledgement from the server
-     * socket.emit("hello", "world", (val) => {
-     *   // ...
-     * });
-     *
-     * @return self
-     */
-    emit(ev, ...args) {
-        var _a, _b, _c;
-        if (socket_RESERVED_EVENTS.hasOwnProperty(ev)) {
-            throw new Error('"' + ev.toString() + '" is a reserved event name');
-        }
-        args.unshift(ev);
-        if (this._opts.retries && !this.flags.fromQueue && !this.flags.volatile) {
-            this._addToQueue(args);
-            return this;
-        }
-        const packet = {
-            type: PacketType.EVENT,
-            data: args,
-        };
-        packet.options = {};
-        packet.options.compress = this.flags.compress !== false;
-        // event ack callback
-        if ("function" === typeof args[args.length - 1]) {
-            const id = this.ids++;
-            esm_debug_socket_debug("emitting packet with ack id %d", id);
-            const ack = args.pop();
-            this._registerAckCallback(id, ack);
-            packet.id = id;
-        }
-        const isTransportWritable = (_b = (_a = this.io.engine) === null || _a === void 0 ? void 0 : _a.transport) === null || _b === void 0 ? void 0 : _b.writable;
-        const isConnected = this.connected && !((_c = this.io.engine) === null || _c === void 0 ? void 0 : _c._hasPingExpired());
-        const discardPacket = this.flags.volatile && !isTransportWritable;
-        if (discardPacket) {
-            esm_debug_socket_debug("discard packet as the transport is not currently writable");
-        }
-        else if (isConnected) {
-            this.notifyOutgoingListeners(packet);
-            this.packet(packet);
-        }
-        else {
-            this.sendBuffer.push(packet);
-        }
-        this.flags = {};
-        return this;
-    }
-    /**
-     * @private
-     */
-    _registerAckCallback(id, ack) {
-        var _a;
-        const timeout = (_a = this.flags.timeout) !== null && _a !== void 0 ? _a : this._opts.ackTimeout;
-        if (timeout === undefined) {
-            this.acks[id] = ack;
-            return;
-        }
-        // @ts-ignore
-        const timer = this.io.setTimeoutFn(() => {
-            delete this.acks[id];
-            for (let i = 0; i < this.sendBuffer.length; i++) {
-                if (this.sendBuffer[i].id === id) {
-                    esm_debug_socket_debug("removing packet with ack id %d from the buffer", id);
-                    this.sendBuffer.splice(i, 1);
-                }
-            }
-            esm_debug_socket_debug("event with ack id %d has timed out after %d ms", id, timeout);
-            ack.call(this, new Error("operation has timed out"));
-        }, timeout);
-        const fn = (...args) => {
-            // @ts-ignore
-            this.io.clearTimeoutFn(timer);
-            ack.apply(this, args);
-        };
-        fn.withError = true;
-        this.acks[id] = fn;
-    }
-    /**
-     * Emits an event and waits for an acknowledgement
-     *
-     * @example
-     * // without timeout
-     * const response = await socket.emitWithAck("hello", "world");
-     *
-     * // with a specific timeout
-     * try {
-     *   const response = await socket.timeout(1000).emitWithAck("hello", "world");
-     * } catch (err) {
-     *   // the server did not acknowledge the event in the given delay
-     * }
-     *
-     * @return a Promise that will be fulfilled when the server acknowledges the event
-     */
-    emitWithAck(ev, ...args) {
-        return new Promise((resolve, reject) => {
-            const fn = (arg1, arg2) => {
-                return arg1 ? reject(arg1) : resolve(arg2);
-            };
-            fn.withError = true;
-            args.push(fn);
-            this.emit(ev, ...args);
+        const ws = new wrapper(this.url, this.origin ? { origin: this.origin } : undefined);
+        this.ws = ws;
+        // Map ws lifecycle onto the Socket.IO-style events the pool listens for
+        ws.on("open", () => this.emitter.emit("connect"));
+        ws.on("close", (code, reason) => {
+            this.emitter.emit("disconnect", reason?.toString() || `code ${code}`);
         });
-    }
-    /**
-     * Add the packet to the queue.
-     * @param args
-     * @private
-     */
-    _addToQueue(args) {
-        let ack;
-        if (typeof args[args.length - 1] === "function") {
-            ack = args.pop();
-        }
-        const packet = {
-            id: this._queueSeq++,
-            tryCount: 0,
-            pending: false,
-            args,
-            flags: Object.assign({ fromQueue: true }, this.flags),
-        };
-        args.push((err, ...responseArgs) => {
-            if (packet !== this._queue[0]) {
-                // the packet has already been acknowledged
+        ws.on("error", (err) => this.emitter.emit("connect_error", err));
+        ws.on("message", (data, isBinary) => {
+            if (isBinary)
+                return;
+            let frame;
+            try {
+                frame = JSON.parse(data.toString());
+            }
+            catch {
+                return; // ignore anything that isn't our JSON envelope
+            }
+            const event = frame.event;
+            if (!event)
+                return;
+            const args = frame.args ?? [];
+            // EventEmitter throws if "error" is emitted with no listener; guard it.
+            if (event === "error" && this.emitter.listenerCount("error") === 0) {
+                console.error("[ws] server error frame:", ...args);
                 return;
             }
-            const hasError = err !== null;
-            if (hasError) {
-                if (packet.tryCount > this._opts.retries) {
-                    esm_debug_socket_debug("packet [%d] is discarded after %d tries", packet.id, packet.tryCount);
-                    this._queue.shift();
-                    if (ack) {
-                        ack(err);
-                    }
-                }
-            }
-            else {
-                esm_debug_socket_debug("packet [%d] was successfully sent", packet.id);
-                this._queue.shift();
-                if (ack) {
-                    ack(null, ...responseArgs);
-                }
-            }
-            packet.pending = false;
-            return this._drainQueue();
+            this.emitter.emit(event, ...args);
         });
-        this._queue.push(packet);
-        this._drainQueue();
+        return this;
     }
     /**
-     * Send the first packet of the queue, and wait for an acknowledgement from the server.
-     * @param force - whether to resend a packet that has not been acknowledged yet
+     * Sends an event to the server as a `{ event, args }` JSON frame.
      *
-     * @private
+     * @remarks
+     * Unlike EventEmitter.emit, this does NOT fire local listeners — it writes
+     * to the socket. Incoming frames fire local listeners via the internal
+     * emitter.
      */
-    _drainQueue(force = false) {
-        esm_debug_socket_debug("draining queue");
-        if (!this.connected || this._queue.length === 0) {
-            return;
-        }
-        const packet = this._queue[0];
-        if (packet.pending && !force) {
-            esm_debug_socket_debug("packet [%d] has already been sent and is waiting for an ack", packet.id);
-            return;
-        }
-        packet.pending = true;
-        packet.tryCount++;
-        esm_debug_socket_debug("sending packet [%d] (try n°%d)", packet.id, packet.tryCount);
-        this.flags = packet.flags;
-        this.emit.apply(this, packet.args);
-    }
-    /**
-     * Sends a packet.
-     *
-     * @param packet
-     * @private
-     */
-    packet(packet) {
-        packet.nsp = this.nsp;
-        this.io._packet(packet);
-    }
-    /**
-     * Called upon engine `open`.
-     *
-     * @private
-     */
-    onopen() {
-        esm_debug_socket_debug("transport is open - connecting");
-        if (typeof this.auth == "function") {
-            this.auth((data) => {
-                this._sendConnectPacket(data);
-            });
+    emit(event, ...args) {
+        this.outgoingListener?.(event, ...args);
+        const frame = JSON.stringify(args.length ? { event, args } : { event });
+        if (this.ws && this.ws.readyState === wrapper.OPEN) {
+            this.ws.send(frame);
         }
         else {
-            this._sendConnectPacket(this.auth);
+            console.error(`[ws] dropped outgoing "${event}" — socket not open`);
         }
+        return true;
     }
-    /**
-     * Sends a CONNECT packet to initiate the Socket.IO session.
-     *
-     * @param data
-     * @private
-     */
-    _sendConnectPacket(data) {
-        this.packet({
-            type: PacketType.CONNECT,
-            data: this._pid
-                ? Object.assign({ pid: this._pid, offset: this._lastOffset }, data)
-                : data,
-        });
+    on(event, listener) {
+        this.emitter.on(event, listener);
+        return this;
     }
-    /**
-     * Called upon engine or manager `error`.
-     *
-     * @param err
-     * @private
-     */
-    onerror(err) {
-        if (!this.connected) {
-            this.emitReserved("connect_error", err);
-        }
-    }
-    /**
-     * Called upon engine `close`.
-     *
-     * @param reason
-     * @param description
-     * @private
-     */
-    onclose(reason, description) {
-        esm_debug_socket_debug("close (%s)", reason);
-        this.connected = false;
-        delete this.id;
-        this.emitReserved("disconnect", reason, description);
-        this._clearAcks();
-    }
-    /**
-     * Clears the acknowledgement handlers upon disconnection, since the client will never receive an acknowledgement from
-     * the server.
-     *
-     * @private
-     */
-    _clearAcks() {
-        Object.keys(this.acks).forEach((id) => {
-            const isBuffered = this.sendBuffer.some((packet) => String(packet.id) === id);
-            if (!isBuffered) {
-                // note: handlers that do not accept an error as first argument are ignored here
-                const ack = this.acks[id];
-                delete this.acks[id];
-                if (ack.withError) {
-                    ack.call(this, new Error("socket has been disconnected"));
-                }
-            }
-        });
-    }
-    /**
-     * Called with socket packet.
-     *
-     * @param packet
-     * @private
-     */
-    onpacket(packet) {
-        const sameNamespace = packet.nsp === this.nsp;
-        if (!sameNamespace)
-            return;
-        switch (packet.type) {
-            case PacketType.CONNECT:
-                if (packet.data && packet.data.sid) {
-                    this.onconnect(packet.data.sid, packet.data.pid);
-                }
-                else {
-                    this.emitReserved("connect_error", new Error("It seems you are trying to reach a Socket.IO server in v2.x with a v3.x client, but they are not compatible (more information here: https://socket.io/docs/v3/migrating-from-2-x-to-3-0/)"));
-                }
-                break;
-            case PacketType.EVENT:
-            case PacketType.BINARY_EVENT:
-                this.onevent(packet);
-                break;
-            case PacketType.ACK:
-            case PacketType.BINARY_ACK:
-                this.onack(packet);
-                break;
-            case PacketType.DISCONNECT:
-                this.ondisconnect();
-                break;
-            case PacketType.CONNECT_ERROR:
-                this.destroy();
-                const err = new Error(packet.data.message);
-                // @ts-ignore
-                err.data = packet.data.data;
-                this.emitReserved("connect_error", err);
-                break;
-        }
-    }
-    /**
-     * Called upon a server event.
-     *
-     * @param packet
-     * @private
-     */
-    onevent(packet) {
-        const args = packet.data || [];
-        esm_debug_socket_debug("emitting event %j", args);
-        if (null != packet.id) {
-            esm_debug_socket_debug("attaching ack callback to event");
-            args.push(this.ack(packet.id));
-        }
-        if (this.connected) {
-            this.emitEvent(args);
-        }
-        else {
-            this.receiveBuffer.push(Object.freeze(args));
-        }
-    }
-    emitEvent(args) {
-        if (this._anyListeners && this._anyListeners.length) {
-            const listeners = this._anyListeners.slice();
-            for (const listener of listeners) {
-                listener.apply(this, args);
-            }
-        }
-        super.emit.apply(this, args);
-        if (this._pid && args.length && typeof args[args.length - 1] === "string") {
-            this._lastOffset = args[args.length - 1];
-        }
-    }
-    /**
-     * Produces an ack callback to emit with an event.
-     *
-     * @private
-     */
-    ack(id) {
-        const self = this;
-        let sent = false;
-        return function (...args) {
-            // prevent double callbacks
-            if (sent)
-                return;
-            sent = true;
-            esm_debug_socket_debug("sending ack %j", args);
-            self.packet({
-                type: PacketType.ACK,
-                id: id,
-                data: args,
-            });
-        };
-    }
-    /**
-     * Called upon a server acknowledgement.
-     *
-     * @param packet
-     * @private
-     */
-    onack(packet) {
-        const ack = this.acks[packet.id];
-        if (typeof ack !== "function") {
-            esm_debug_socket_debug("bad ack %s", packet.id);
-            return;
-        }
-        delete this.acks[packet.id];
-        esm_debug_socket_debug("calling ack %s with %j", packet.id, packet.data);
-        // @ts-ignore FIXME ack is incorrectly inferred as 'never'
-        if (ack.withError) {
-            packet.data.unshift(null);
-        }
-        // @ts-ignore
-        ack.apply(this, packet.data);
-    }
-    /**
-     * Called upon server connect.
-     *
-     * @private
-     */
-    onconnect(id, pid) {
-        esm_debug_socket_debug("socket connected with id %s", id);
-        this.id = id;
-        this.recovered = pid && this._pid === pid;
-        this._pid = pid; // defined only if connection state recovery is enabled
-        this.connected = true;
-        this.emitBuffered();
-        this.emitReserved("connect");
-        this._drainQueue(true);
-    }
-    /**
-     * Emit buffered events (received and emitted).
-     *
-     * @private
-     */
-    emitBuffered() {
-        this.receiveBuffer.forEach((args) => this.emitEvent(args));
-        this.receiveBuffer = [];
-        this.sendBuffer.forEach((packet) => {
-            this.notifyOutgoingListeners(packet);
-            this.packet(packet);
-        });
-        this.sendBuffer = [];
-    }
-    /**
-     * Called upon server disconnect.
-     *
-     * @private
-     */
-    ondisconnect() {
-        esm_debug_socket_debug("server disconnect (%s)", this.nsp);
-        this.destroy();
-        this.onclose("io server disconnect");
-    }
-    /**
-     * Called upon forced client/server side disconnections,
-     * this method ensures the manager stops tracking us and
-     * that reconnections don't get triggered for this.
-     *
-     * @private
-     */
-    destroy() {
-        if (this.subs) {
-            // clean subscriptions to avoid reconnections
-            this.subs.forEach((subDestroy) => subDestroy());
-            this.subs = undefined;
-        }
-        this.io["_destroy"](this);
-    }
-    /**
-     * Disconnects the socket manually. In that case, the socket will not try to reconnect.
-     *
-     * If this is the last active Socket instance of the {@link Manager}, the low-level connection will be closed.
-     *
-     * @example
-     * const socket = io();
-     *
-     * socket.on("disconnect", (reason) => {
-     *   // console.log(reason); prints "io client disconnect"
-     * });
-     *
-     * socket.disconnect();
-     *
-     * @return self
-     */
-    disconnect() {
-        if (this.connected) {
-            esm_debug_socket_debug("performing disconnect (%s)", this.nsp);
-            this.packet({ type: PacketType.DISCONNECT });
-        }
-        // remove socket from pool
-        this.destroy();
-        if (this.connected) {
-            // fire events
-            this.onclose("io client disconnect");
-        }
+    once(event, listener) {
+        this.emitter.once(event, listener);
         return this;
     }
     /**
-     * Alias for {@link disconnect()}.
-     *
-     * @return self
+     * Removes a specific listener, or — matching Socket.IO's behaviour — all
+     * listeners for an event when no listener is given.
      */
-    close() {
-        return this.disconnect();
-    }
-    /**
-     * Sets the compress flag.
-     *
-     * @example
-     * socket.compress(false).emit("hello");
-     *
-     * @param compress - if `true`, compresses the sending data
-     * @return self
-     */
-    compress(compress) {
-        this.flags.compress = compress;
-        return this;
-    }
-    /**
-     * Sets a modifier for a subsequent event emission that the event message will be dropped when this socket is not
-     * ready to send messages.
-     *
-     * @example
-     * socket.volatile.emit("hello"); // the server may or may not receive it
-     *
-     * @returns self
-     */
-    get volatile() {
-        this.flags.volatile = true;
-        return this;
-    }
-    /**
-     * Sets a modifier for a subsequent event emission that the callback will be called with an error when the
-     * given number of milliseconds have elapsed without an acknowledgement from the server:
-     *
-     * @example
-     * socket.timeout(5000).emit("my-event", (err) => {
-     *   if (err) {
-     *     // the server did not acknowledge the event in the given delay
-     *   }
-     * });
-     *
-     * @returns self
-     */
-    timeout(timeout) {
-        this.flags.timeout = timeout;
-        return this;
-    }
-    /**
-     * Adds a listener that will be fired when any event is emitted. The event name is passed as the first argument to the
-     * callback.
-     *
-     * @example
-     * socket.onAny((event, ...args) => {
-     *   console.log(`got ${event}`);
-     * });
-     *
-     * @param listener
-     */
-    onAny(listener) {
-        this._anyListeners = this._anyListeners || [];
-        this._anyListeners.push(listener);
-        return this;
-    }
-    /**
-     * Adds a listener that will be fired when any event is emitted. The event name is passed as the first argument to the
-     * callback. The listener is added to the beginning of the listeners array.
-     *
-     * @example
-     * socket.prependAny((event, ...args) => {
-     *   console.log(`got event ${event}`);
-     * });
-     *
-     * @param listener
-     */
-    prependAny(listener) {
-        this._anyListeners = this._anyListeners || [];
-        this._anyListeners.unshift(listener);
-        return this;
-    }
-    /**
-     * Removes the listener that will be fired when any event is emitted.
-     *
-     * @example
-     * const catchAllListener = (event, ...args) => {
-     *   console.log(`got event ${event}`);
-     * }
-     *
-     * socket.onAny(catchAllListener);
-     *
-     * // remove a specific listener
-     * socket.offAny(catchAllListener);
-     *
-     * // or remove all listeners
-     * socket.offAny();
-     *
-     * @param listener
-     */
-    offAny(listener) {
-        if (!this._anyListeners) {
-            return this;
-        }
+    off(event, listener) {
         if (listener) {
-            const listeners = this._anyListeners;
-            for (let i = 0; i < listeners.length; i++) {
-                if (listener === listeners[i]) {
-                    listeners.splice(i, 1);
-                    return this;
-                }
-            }
+            this.emitter.off(event, listener);
         }
         else {
-            this._anyListeners = [];
+            this.emitter.removeAllListeners(event);
         }
         return this;
     }
-    /**
-     * Returns an array of listeners that are listening for any event that is specified. This array can be manipulated,
-     * e.g. to remove listeners.
-     */
-    listenersAny() {
-        return this._anyListeners || [];
+    removeAllListeners(event) {
+        this.emitter.removeAllListeners(event);
+        return this;
     }
     /**
-     * Adds a listener that will be fired when any event is emitted. The event name is passed as the first argument to the
-     * callback.
-     *
-     * Note: acknowledgements sent to the server are not included.
-     *
-     * @example
-     * socket.onAnyOutgoing((event, ...args) => {
-     *   console.log(`sent event ${event}`);
-     * });
-     *
-     * @param listener
+     * Registers a callback invoked for every outgoing emit (parity with
+     * Socket.IO's `onAnyOutgoing`, used for logging).
      */
     onAnyOutgoing(listener) {
-        this._anyOutgoingListeners = this._anyOutgoingListeners || [];
-        this._anyOutgoingListeners.push(listener);
+        this.outgoingListener = listener;
         return this;
     }
-    /**
-     * Adds a listener that will be fired when any event is emitted. The event name is passed as the first argument to the
-     * callback. The listener is added to the beginning of the listeners array.
-     *
-     * Note: acknowledgements sent to the server are not included.
-     *
-     * @example
-     * socket.prependAnyOutgoing((event, ...args) => {
-     *   console.log(`sent event ${event}`);
-     * });
-     *
-     * @param listener
-     */
-    prependAnyOutgoing(listener) {
-        this._anyOutgoingListeners = this._anyOutgoingListeners || [];
-        this._anyOutgoingListeners.unshift(listener);
-        return this;
-    }
-    /**
-     * Removes the listener that will be fired when any event is emitted.
-     *
-     * @example
-     * const catchAllListener = (event, ...args) => {
-     *   console.log(`sent event ${event}`);
-     * }
-     *
-     * socket.onAnyOutgoing(catchAllListener);
-     *
-     * // remove a specific listener
-     * socket.offAnyOutgoing(catchAllListener);
-     *
-     * // or remove all listeners
-     * socket.offAnyOutgoing();
-     *
-     * @param [listener] - the catch-all listener (optional)
-     */
-    offAnyOutgoing(listener) {
-        if (!this._anyOutgoingListeners) {
-            return this;
-        }
-        if (listener) {
-            const listeners = this._anyOutgoingListeners;
-            for (let i = 0; i < listeners.length; i++) {
-                if (listener === listeners[i]) {
-                    listeners.splice(i, 1);
-                    return this;
-                }
-            }
-        }
-        else {
-            this._anyOutgoingListeners = [];
-        }
-        return this;
-    }
-    /**
-     * Returns an array of listeners that are listening for any event that is specified. This array can be manipulated,
-     * e.g. to remove listeners.
-     */
-    listenersAnyOutgoing() {
-        return this._anyOutgoingListeners || [];
-    }
-    /**
-     * Notify the listeners for each packet sent
-     *
-     * @param packet
-     *
-     * @private
-     */
-    notifyOutgoingListeners(packet) {
-        if (this._anyOutgoingListeners && this._anyOutgoingListeners.length) {
-            const listeners = this._anyOutgoingListeners.slice();
-            for (const listener of listeners) {
-                listener.apply(this, packet.data);
-            }
-        }
-    }
-}
-
-;// CONCATENATED MODULE: ./node_modules/socket.io-client/build/esm-debug/contrib/backo2.js
-/**
- * Initialize backoff timer with `opts`.
- *
- * - `min` initial timeout in milliseconds [100]
- * - `max` max timeout [10000]
- * - `jitter` [0]
- * - `factor` [2]
- *
- * @param {Object} opts
- * @api public
- */
-function Backoff(opts) {
-    opts = opts || {};
-    this.ms = opts.min || 100;
-    this.max = opts.max || 10000;
-    this.factor = opts.factor || 2;
-    this.jitter = opts.jitter > 0 && opts.jitter <= 1 ? opts.jitter : 0;
-    this.attempts = 0;
-}
-/**
- * Return the backoff duration.
- *
- * @return {Number}
- * @api public
- */
-Backoff.prototype.duration = function () {
-    var ms = this.ms * Math.pow(this.factor, this.attempts++);
-    if (this.jitter) {
-        var rand = Math.random();
-        var deviation = Math.floor(rand * this.jitter * ms);
-        ms = (Math.floor(rand * 10) & 1) == 0 ? ms - deviation : ms + deviation;
-    }
-    return Math.min(ms, this.max) | 0;
-};
-/**
- * Reset the number of attempts.
- *
- * @api public
- */
-Backoff.prototype.reset = function () {
-    this.attempts = 0;
-};
-/**
- * Set the minimum duration
- *
- * @api public
- */
-Backoff.prototype.setMin = function (min) {
-    this.ms = min;
-};
-/**
- * Set the maximum duration
- *
- * @api public
- */
-Backoff.prototype.setMax = function (max) {
-    this.max = max;
-};
-/**
- * Set the jitter
- *
- * @api public
- */
-Backoff.prototype.setJitter = function (jitter) {
-    this.jitter = jitter;
-};
-
-;// CONCATENATED MODULE: ./node_modules/socket.io-client/build/esm-debug/manager.js
-
-
-
-
-
-
- // debug()
-const manager_debug = src("socket.io-client:manager"); // debug()
-class Manager extends cjs/* Emitter */.Q {
-    constructor(uri, opts) {
-        var _a;
-        super();
-        this.nsps = {};
-        this.subs = [];
-        if (uri && "object" === typeof uri) {
-            opts = uri;
-            uri = undefined;
-        }
-        opts = opts || {};
-        opts.path = opts.path || "/socket.io";
-        this.opts = opts;
-        installTimerFunctions(this, opts);
-        this.reconnection(opts.reconnection !== false);
-        this.reconnectionAttempts(opts.reconnectionAttempts || Infinity);
-        this.reconnectionDelay(opts.reconnectionDelay || 1000);
-        this.reconnectionDelayMax(opts.reconnectionDelayMax || 5000);
-        this.randomizationFactor((_a = opts.randomizationFactor) !== null && _a !== void 0 ? _a : 0.5);
-        this.backoff = new Backoff({
-            min: this.reconnectionDelay(),
-            max: this.reconnectionDelayMax(),
-            jitter: this.randomizationFactor(),
-        });
-        this.timeout(null == opts.timeout ? 20000 : opts.timeout);
-        this._readyState = "closed";
-        this.uri = uri;
-        const _parser = opts.parser || build_esm_debug_namespaceObject;
-        this.encoder = new _parser.Encoder();
-        this.decoder = new _parser.Decoder();
-        this._autoConnect = opts.autoConnect !== false;
-        if (this._autoConnect)
-            this.open();
-    }
-    reconnection(v) {
-        if (!arguments.length)
-            return this._reconnection;
-        this._reconnection = !!v;
-        if (!v) {
-            this.skipReconnect = true;
-        }
-        return this;
-    }
-    reconnectionAttempts(v) {
-        if (v === undefined)
-            return this._reconnectionAttempts;
-        this._reconnectionAttempts = v;
-        return this;
-    }
-    reconnectionDelay(v) {
-        var _a;
-        if (v === undefined)
-            return this._reconnectionDelay;
-        this._reconnectionDelay = v;
-        (_a = this.backoff) === null || _a === void 0 ? void 0 : _a.setMin(v);
-        return this;
-    }
-    randomizationFactor(v) {
-        var _a;
-        if (v === undefined)
-            return this._randomizationFactor;
-        this._randomizationFactor = v;
-        (_a = this.backoff) === null || _a === void 0 ? void 0 : _a.setJitter(v);
-        return this;
-    }
-    reconnectionDelayMax(v) {
-        var _a;
-        if (v === undefined)
-            return this._reconnectionDelayMax;
-        this._reconnectionDelayMax = v;
-        (_a = this.backoff) === null || _a === void 0 ? void 0 : _a.setMax(v);
-        return this;
-    }
-    timeout(v) {
-        if (!arguments.length)
-            return this._timeout;
-        this._timeout = v;
-        return this;
-    }
-    /**
-     * Starts trying to reconnect if reconnection is enabled and we have not
-     * started reconnecting yet
-     *
-     * @private
-     */
-    maybeReconnectOnOpen() {
-        // Only try to reconnect if it's the first time we're connecting
-        if (!this._reconnecting &&
-            this._reconnection &&
-            this.backoff.attempts === 0) {
-            // keeps reconnection from firing twice for the same reconnection loop
-            this.reconnect();
-        }
-    }
-    /**
-     * Sets the current transport `socket`.
-     *
-     * @param {Function} fn - optional, callback
-     * @return self
-     * @public
-     */
-    open(fn) {
-        manager_debug("readyState %s", this._readyState);
-        if (~this._readyState.indexOf("open"))
-            return this;
-        manager_debug("opening %s", this.uri);
-        this.engine = new Socket(this.uri, this.opts);
-        const socket = this.engine;
-        const self = this;
-        this._readyState = "opening";
-        this.skipReconnect = false;
-        // emit `open`
-        const openSubDestroy = on(socket, "open", function () {
-            self.onopen();
-            fn && fn();
-        });
-        const onError = (err) => {
-            manager_debug("error");
-            this.cleanup();
-            this._readyState = "closed";
-            this.emitReserved("error", err);
-            if (fn) {
-                fn(err);
-            }
-            else {
-                // Only do this if there is no fn to handle the error
-                this.maybeReconnectOnOpen();
-            }
-        };
-        // emit `error`
-        const errorSub = on(socket, "error", onError);
-        if (false !== this._timeout) {
-            const timeout = this._timeout;
-            manager_debug("connect attempt will timeout after %d", timeout);
-            // set timer
-            const timer = this.setTimeoutFn(() => {
-                manager_debug("connect attempt timed out after %d", timeout);
-                openSubDestroy();
-                onError(new Error("timeout"));
-                socket.close();
-            }, timeout);
-            if (this.opts.autoUnref) {
-                timer.unref();
-            }
-            this.subs.push(() => {
-                this.clearTimeoutFn(timer);
-            });
-        }
-        this.subs.push(openSubDestroy);
-        this.subs.push(errorSub);
-        return this;
-    }
-    /**
-     * Alias for open()
-     *
-     * @return self
-     * @public
-     */
-    connect(fn) {
-        return this.open(fn);
-    }
-    /**
-     * Called upon transport open.
-     *
-     * @private
-     */
-    onopen() {
-        manager_debug("open");
-        // clear old subs
-        this.cleanup();
-        // mark as open
-        this._readyState = "open";
-        this.emitReserved("open");
-        // add new subs
-        const socket = this.engine;
-        this.subs.push(on(socket, "ping", this.onping.bind(this)), on(socket, "data", this.ondata.bind(this)), on(socket, "error", this.onerror.bind(this)), on(socket, "close", this.onclose.bind(this)), 
-        // @ts-ignore
-        on(this.decoder, "decoded", this.ondecoded.bind(this)));
-    }
-    /**
-     * Called upon a ping.
-     *
-     * @private
-     */
-    onping() {
-        this.emitReserved("ping");
-    }
-    /**
-     * Called with data.
-     *
-     * @private
-     */
-    ondata(data) {
-        try {
-            this.decoder.add(data);
-        }
-        catch (e) {
-            this.onclose("parse error", e);
-        }
-    }
-    /**
-     * Called when parser fully decodes a packet.
-     *
-     * @private
-     */
-    ondecoded(packet) {
-        // the nextTick call prevents an exception in a user-provided event listener from triggering a disconnection due to a "parse error"
-        nextTick(() => {
-            this.emitReserved("packet", packet);
-        }, this.setTimeoutFn);
-    }
-    /**
-     * Called upon socket error.
-     *
-     * @private
-     */
-    onerror(err) {
-        manager_debug("error", err);
-        this.emitReserved("error", err);
-    }
-    /**
-     * Creates a new socket for the given `nsp`.
-     *
-     * @return {Socket}
-     * @public
-     */
-    socket(nsp, opts) {
-        let socket = this.nsps[nsp];
-        if (!socket) {
-            socket = new socket_Socket(this, nsp, opts);
-            this.nsps[nsp] = socket;
-        }
-        else if (this._autoConnect && !socket.active) {
-            socket.connect();
-        }
-        return socket;
-    }
-    /**
-     * Called upon a socket close.
-     *
-     * @param socket
-     * @private
-     */
-    _destroy(socket) {
-        const nsps = Object.keys(this.nsps);
-        for (const nsp of nsps) {
-            const socket = this.nsps[nsp];
-            if (socket.active) {
-                manager_debug("socket %s is still active, skipping close", nsp);
-                return;
-            }
-        }
-        this._close();
-    }
-    /**
-     * Writes a packet.
-     *
-     * @param packet
-     * @private
-     */
-    _packet(packet) {
-        manager_debug("writing packet %j", packet);
-        const encodedPackets = this.encoder.encode(packet);
-        for (let i = 0; i < encodedPackets.length; i++) {
-            this.engine.write(encodedPackets[i], packet.options);
-        }
-    }
-    /**
-     * Clean up transport subscriptions and packet buffer.
-     *
-     * @private
-     */
-    cleanup() {
-        manager_debug("cleanup");
-        this.subs.forEach((subDestroy) => subDestroy());
-        this.subs.length = 0;
-        this.decoder.destroy();
-    }
-    /**
-     * Close the current socket.
-     *
-     * @private
-     */
-    _close() {
-        manager_debug("disconnect");
-        this.skipReconnect = true;
-        this._reconnecting = false;
-        this.onclose("forced close");
-    }
-    /**
-     * Alias for close()
-     *
-     * @private
-     */
     disconnect() {
-        return this._close();
-    }
-    /**
-     * Called when:
-     *
-     * - the low-level engine is closed
-     * - the parser encountered a badly formatted packet
-     * - all sockets are disconnected
-     *
-     * @private
-     */
-    onclose(reason, description) {
-        var _a;
-        manager_debug("closed due to %s", reason);
-        this.cleanup();
-        (_a = this.engine) === null || _a === void 0 ? void 0 : _a.close();
-        this.backoff.reset();
-        this._readyState = "closed";
-        this.emitReserved("close", reason, description);
-        if (this._reconnection && !this.skipReconnect) {
-            this.reconnect();
-        }
-    }
-    /**
-     * Attempt a reconnection.
-     *
-     * @private
-     */
-    reconnect() {
-        if (this._reconnecting || this.skipReconnect)
-            return this;
-        const self = this;
-        if (this.backoff.attempts >= this._reconnectionAttempts) {
-            manager_debug("reconnect failed");
-            this.backoff.reset();
-            this.emitReserved("reconnect_failed");
-            this._reconnecting = false;
-        }
-        else {
-            const delay = this.backoff.duration();
-            manager_debug("will wait %dms before reconnect attempt", delay);
-            this._reconnecting = true;
-            const timer = this.setTimeoutFn(() => {
-                if (self.skipReconnect)
-                    return;
-                manager_debug("attempting reconnect");
-                this.emitReserved("reconnect_attempt", self.backoff.attempts);
-                // check again for the case socket closed in above events
-                if (self.skipReconnect)
-                    return;
-                self.open((err) => {
-                    if (err) {
-                        manager_debug("reconnect attempt error");
-                        self._reconnecting = false;
-                        self.reconnect();
-                        this.emitReserved("reconnect_error", err);
-                    }
-                    else {
-                        manager_debug("reconnect success");
-                        self.onreconnect();
-                    }
-                });
-            }, delay);
-            if (this.opts.autoUnref) {
-                timer.unref();
-            }
-            this.subs.push(() => {
-                this.clearTimeoutFn(timer);
-            });
-        }
-    }
-    /**
-     * Called upon successful reconnect.
-     *
-     * @private
-     */
-    onreconnect() {
-        const attempt = this.backoff.attempts;
-        this._reconnecting = false;
-        this.backoff.reset();
-        this.emitReserved("reconnect", attempt);
+        this.ws?.close();
+        return this;
     }
 }
 
-;// CONCATENATED MODULE: ./node_modules/socket.io-client/build/esm-debug/index.js
-
-
-
- // debug()
-const build_esm_debug_debug = src("socket.io-client"); // debug()
-/**
- * Managers cache.
- */
-const cache = {};
-function lookup(uri, opts) {
-    if (typeof uri === "object") {
-        opts = uri;
-        uri = undefined;
-    }
-    opts = opts || {};
-    const parsed = url(uri, opts.path || "/socket.io");
-    const source = parsed.source;
-    const id = parsed.id;
-    const path = parsed.path;
-    const sameNamespace = cache[id] && path in cache[id]["nsps"];
-    const newConnection = opts.forceNew ||
-        opts["force new connection"] ||
-        false === opts.multiplex ||
-        sameNamespace;
-    let io;
-    if (newConnection) {
-        build_esm_debug_debug("ignoring socket cache for %s", source);
-        io = new Manager(source, opts);
-    }
-    else {
-        if (!cache[id]) {
-            build_esm_debug_debug("new io instance for %s", source);
-            cache[id] = new Manager(source, opts);
-        }
-        io = cache[id];
-    }
-    if (parsed.query && !opts.query) {
-        opts.query = parsed.queryKey;
-    }
-    return io.socket(parsed.path, opts);
-}
-// so that "lookup" can be used both as a function (e.g. `io(...)`) and as a
-// namespace (e.g. `io.connect(...)`), for backward compatibility
-Object.assign(lookup, {
-    Manager: Manager,
-    Socket: socket_Socket,
-    io: lookup,
-    connect: lookup,
-});
-/**
- * Protocol version.
- *
- * @public
- */
-
-/**
- * Expose constructors for standalone build.
- *
- * @public
- */
-
-
-
-;// CONCATENATED MODULE: ./node_modules/wispjs/dist/wisp_socket/pool.js
+;// CONCATENATED MODULE: ../wispjs/dist/wisp_socket/pool.js
 
 const WISP_DEBUG = process.env.WISP_DEBUG === "true";
 /**
@@ -24793,17 +19097,16 @@ const WISP_DEBUG = process.env.WISP_DEBUG === "true";
  */
 class PoolWorker {
     constructor(pool) {
+        this.intentionalDisconnect = false;
+        this.reconnectAttempts = 0;
+        this.maxReconnectAttempts = 3;
         this.pool = pool;
-        this.ready = false;
+        this.connected = false;
+        this.busy = false;
         this.done = false;
         this.idx = pool.workers.length;
         this.token = pool.token;
-        this.socket = lookup(pool.url, {
-            forceNew: true,
-            transports: ["websocket"],
-            addTrailingSlash: true,
-            autoConnect: false
-        });
+        this.url = pool.url;
         const logPrefix = `[Worker #${this.idx}]`;
         this.logger = {
             log: (...args) => console.log(logPrefix, args),
@@ -24814,7 +19117,22 @@ class PoolWorker {
                 console.debug(logPrefix, args);
             }
         };
-        this.connect().then(() => this.processWork()).catch(err => this.logger.error(err));
+        this.start();
+        this.processWork();
+    }
+    createSocket() {
+        this.socket = new WispWebSocket(this.url, {
+            origin: this.pool.origin
+        });
+    }
+    start() {
+        this.createSocket();
+        this.connect()
+            .then(() => this.logger.log("Connection established"))
+            .catch((err) => {
+            this.logger.error("Connection failed", err);
+            this.handleDisconnect("connection failure");
+        });
     }
     connect() {
         const socket = this.socket;
@@ -24824,11 +19142,10 @@ class PoolWorker {
         return new Promise((resolve, reject) => {
             const timeout = setTimeout(() => {
                 logger.error("Socket didn't connect in time");
-                reject("Connection Timeout");
+                reject(new Error("Connection Timeout"));
             }, 10000);
             socket.on("connect", () => {
-                logger.log("Connected to WebSocket");
-                logger.log("Emitting:", "auth", this.token);
+                logger.log("Connected to WebSocket, authenticating");
                 socket.emit("auth", this.token);
             });
             socket.on("error", (reason) => {
@@ -24836,28 +19153,65 @@ class PoolWorker {
             });
             socket.on("connect_error", (error) => {
                 logger.error(`WebSocket Connect error: ${error.toString()}`);
-                this.done = true;
                 clearTimeout(timeout);
-                reject(`Connection error: ${error.toString()}`);
+                reject(error);
             });
             socket.on("disconnect", (reason) => {
                 logger.log(`Disconnected from WebSocket: ${reason}`);
+                this.connected = false;
+                this.handleDisconnect(reason);
             });
-            socket.on("auth_success", () => {
+            socket.on("auth success", () => {
                 logger.log("Auth success");
-                this.ready = true;
+                this.reconnectAttempts = 0;
+                this.connected = true;
                 clearTimeout(timeout);
                 resolve();
             });
             socket.connect();
         });
     }
+    // Recovers from an unexpected disconnect by reconnecting with a freshly
+    // fetched token (the JWT is short-lived). After maxReconnectAttempts the
+    // worker is marked dead so the pool stops handing it work.
+    async handleDisconnect(reason) {
+        this.connected = false;
+        if (this.intentionalDisconnect || this.done) {
+            return;
+        }
+        if (this.reconnectAttempts >= this.maxReconnectAttempts) {
+            this.logger.error(`Giving up after ${this.reconnectAttempts} reconnect attempts (${reason})`);
+            this.done = true;
+            this.pool.onWorkerDone();
+            return;
+        }
+        this.reconnectAttempts++;
+        const backoff = Math.min(1000 * this.reconnectAttempts, 5000);
+        this.logger.log(`Reconnecting (attempt ${this.reconnectAttempts}/${this.maxReconnectAttempts}) in ${backoff}ms`);
+        await new Promise((resolve) => setTimeout(resolve, backoff));
+        if (this.intentionalDisconnect || this.done) {
+            return;
+        }
+        if (this.pool.refreshDetails) {
+            try {
+                const details = await this.pool.refreshDetails();
+                this.url = details.url;
+                this.token = details.token;
+            }
+            catch (e) {
+                this.logger.error("Failed to refresh websocket details for reconnect", e);
+            }
+        }
+        this.start();
+    }
     disconnect() {
-        this.ready = false;
-        return new Promise((resolve, reject) => {
+        this.intentionalDisconnect = true;
+        this.connected = false;
+        return new Promise((resolve) => {
             const timeout = setTimeout(() => {
                 this.logger.error("Socket didn't disconnect in time");
-                reject();
+                this.done = true;
+                resolve();
             }, 5000);
             this.socket.once("disconnect", () => {
                 this.done = true;
@@ -24869,13 +19223,13 @@ class PoolWorker {
     }
     async processWork() {
         while (!this.done) {
-            if (!this.ready) {
+            if (!this.connected || this.busy) {
                 await new Promise(resolve => setTimeout(resolve, 100));
                 continue;
             }
             const work = this.pool.getWork();
             if (work) {
-                this.ready = false;
+                this.busy = true;
                 try {
                     this.logger.debug("Running my work");
                     await work(this);
@@ -24886,7 +19240,7 @@ class PoolWorker {
                     this.logger.error(e);
                 }
                 finally {
-                    this.ready = true;
+                    this.busy = false;
                 }
             }
             else {
@@ -24907,11 +19261,15 @@ class PoolWorker {
  * @internal
  */
 class WebsocketPool {
-    constructor(url, token) {
+    constructor(url, token, origin, refreshDetails) {
         const envMaxWorkers = process.env.WISP_MAX_WORKERS;
         this.maxWorkers = envMaxWorkers ? parseInt(envMaxWorkers) : 5;
+        const envAcquire = process.env.WISP_ACQUIRE_TIMEOUT;
+        this.acquireTimeout = envAcquire ? parseInt(envAcquire) : 60000;
         this.token = token;
         this.url = url;
+        this.origin = origin;
+        this.refreshDetails = refreshDetails;
         const logPrefix = "[Pool]";
         this.logger = {
             log: (...args) => console.log(logPrefix, args),
@@ -24930,7 +19288,22 @@ class WebsocketPool {
         }
     }
     getWork() {
-        return this.queue.shift();
+        return this.queue.shift()?.task;
+    }
+    allWorkersDone() {
+        return this.workers.length > 0 && this.workers.every((worker) => worker.done);
+    }
+    // Called by a worker when it gives up permanently. If no workers remain,
+    // queued work can never run, so reject it instead of letting it hang.
+    onWorkerDone() {
+        if (!this.allWorkersDone()) {
+            return;
+        }
+        this.logger.error("All workers are dead - draining queued work");
+        const error = new Error("WebsocketPool has no live workers");
+        while (this.queue.length > 0) {
+            this.queue.shift()?.reject(error);
+        }
     }
     async disconnect() {
         this.logger.log("Disconnecting all workers...");
@@ -24938,22 +19311,232 @@ class WebsocketPool {
         this.logger.log("All workers disconnected");
     }
     async run(work) {
-        return new Promise(async (resolve, reject) => {
-            this.queue.push(async (worker) => {
-                try {
-                    const result = await work(worker);
-                    resolve(result);
+        return new Promise((resolve, reject) => {
+            if (this.allWorkersDone()) {
+                reject(new Error("WebsocketPool has no live workers"));
+                return;
+            }
+            let settled = false;
+            const item = {
+                task: async (worker) => {
+                    if (settled) {
+                        return;
+                    }
+                    settled = true;
+                    clearTimeout(acquireTimer);
+                    try {
+                        const result = await work(worker);
+                        resolve(result);
+                    }
+                    catch (e) {
+                        worker.logger.error("Failed to run a job!");
+                        reject(e);
+                    }
+                },
+                reject: (reason) => {
+                    if (settled) {
+                        return;
+                    }
+                    settled = true;
+                    clearTimeout(acquireTimer);
+                    reject(reason);
                 }
-                catch (e) {
-                    worker.logger.error("Failed to run a job!");
-                    reject(e);
+            };
+            // Backstop so work can't sit in the queue forever if every worker
+            // is wedged. Worker death is handled separately by onWorkerDone.
+            const acquireTimer = setTimeout(() => {
+                const idx = this.queue.indexOf(item);
+                if (idx !== -1) {
+                    this.queue.splice(idx, 1);
                 }
+                item.reject(new Error(`Timed out waiting for an available worker after ${this.acquireTimeout}ms`));
+            }, this.acquireTimeout);
+            this.queue.push(item);
+        });
+    }
+}
+
+;// CONCATENATED MODULE: ../wispjs/dist/wisp_socket/git.js
+/**
+ * Git operations exposed over the Websocket.
+ *
+ * These run through the backend's correlated `fs:request` protocol (see
+ * {@link WispSocket.request}).
+ *
+ * Authentication: SSH remotes are authenticated server-side via a deploy key
+ * configured in the panel. HTTPS remotes can additionally use the GitHub token
+ * (`ghToken`) passed to {@link WispInterface} — {@link pull} and {@link clone}
+ * automatically retry with it when the remote reports `auth_required`.
+ *
+ * @public
+ */
+class GitSocket {
+    constructor(socket) {
+        this.socket = socket;
+    }
+    /**
+     * Runs a git op, retrying once with the configured GitHub token as
+     * `authkey` if the remote reports `auth_required` (an HTTPS remote with no
+     * credentials). SSH auth is handled server-side, so we only retry this
+     * specific case.
+     *
+     * @internal
+     */
+    async withAuthRetry(op, params, timeout) {
+        try {
+            return await this.socket.request(op, params, timeout);
+        }
+        catch (e) {
+            if (e?.code === "auth_required" && this.socket.ghToken) {
+                return await this.socket.request(op, { ...params, authkey: this.socket.ghToken }, timeout);
+            }
+            throw e;
+        }
+    }
+    /**
+     * Gets the git status of a directory (branch, commit, ahead/behind, dirty).
+     *
+     * @param dir The full directory path of the repository
+     * @param timeout In milliseconds, how long to wait before timing out
+     *
+     * @public
+     */
+    async status(dir, timeout = 10000) {
+        return await this.socket.request("git-status", { directory: dir }, timeout);
+    }
+    /**
+     * Performs a git pull on the given repository directory.
+     *
+     * @param dir The full directory path to pull
+     * @param timeout In milliseconds, how long to wait before timing out
+     *
+     * @public
+     */
+    async pull(dir, timeout = 10000) {
+        return await this.withAuthRetry("git-pull", { directory: dir }, timeout);
+    }
+    /**
+     * Clones a repository into the given parent directory.
+     *
+     * @param url The repository URL to clone
+     * @param directory The parent directory to clone into
+     * @param branch The branch to clone (optional)
+     * @param timeout In milliseconds, how long to wait before timing out
+     *
+     * @public
+     */
+    async clone(url, directory, branch, timeout = 20000) {
+        const params = { directory, url };
+        if (branch) {
+            params.branch = branch;
+        }
+        return await this.withAuthRetry("git-clone", params, timeout);
+    }
+}
+
+;// CONCATENATED MODULE: ../wispjs/dist/wisp_socket/filesystem.js
+/**
+ * Filesystem operations exposed over the Websocket.
+ *
+ * `list` runs through the correlated `fs:request` protocol (see
+ * {@link WispSocket.request}); `search` uses the dedicated `filesearch start`/
+ * `filesearch results` events.
+ *
+ * @remarks
+ * The new backend also serves plain file read/write/delete/rename over
+ * `fs:request`, but those op shapes haven't been captured yet. Until typed
+ * wrappers exist here, they're reachable via {@link WispSocket.request}, and
+ * the existing HTTP `Filesystem` API covers them too.
+ *
+ * @public
+ */
+class FilesystemSocket {
+    constructor(socket) {
+        this.socket = socket;
+    }
+    /**
+     * Lists the contents of a directory (paginated).
+     *
+     * @param dir The directory to list
+     * @param opts Search, pagination, and sort options
+     * @param timeout In milliseconds, how long to wait before timing out
+     *
+     * @public
+     */
+    async list(dir, opts = {}, timeout = 10000) {
+        const params = {
+            directory: dir,
+            search: opts.search ?? "",
+            page: opts.page ?? 1,
+            per_page: opts.perPage ?? 100,
+            sort: opts.sort ?? "name",
+            sort_dir: opts.sortDir ?? "asc",
+        };
+        return await this.socket.request("list", params, timeout);
+    }
+    /**
+     * Creates a directory named `name` under `root`.
+     *
+     * @param root The parent directory the new directory is created in
+     * @param name The name of the new directory
+     * @param timeout In milliseconds, how long to wait before timing out
+     *
+     * @public
+     */
+    async createDirectory(root, name, timeout = 10000) {
+        return await this.socket.request("mkdir", { root, name }, timeout);
+    }
+    /**
+     * Checks which of the given paths already exist / would conflict.
+     *
+     * @param paths The paths to check
+     * @param timeout In milliseconds, how long to wait before timing out
+     *
+     * @public
+     */
+    async conflicts(paths, timeout = 10000) {
+        return await this.socket.request("conflicts", { paths }, timeout);
+    }
+    /**
+     * Searches file contents under a root directory for the given query.
+     *
+     * @param query The query string to search for
+     * @param root The directory to search under
+     * @param timeout How long to wait (in ms) for results before timing out
+     *
+     * @public
+     */
+    async search(query, root = "/garrysmod", timeout = 10000) {
+        return await this.socket.runWorker((worker) => {
+            const socket = worker.socket;
+            const logger = worker.logger;
+            logger.log("Running filesearch:", query, root);
+            return new Promise((resolve, reject) => {
+                const timeoutObj = setTimeout(() => {
+                    socket.off("filesearch results");
+                    logger.error("Rejected filesearch: 'Timeout'");
+                    reject(new Error("Timeout"));
+                }, timeout);
+                socket.once("filesearch results", (raw) => {
+                    clearTimeout(timeoutObj);
+                    try {
+                        resolve(JSON.parse(raw));
+                    }
+                    catch (e) {
+                        logger.error("Failed to parse filesearch results", raw);
+                        reject(e);
+                    }
+                });
+                socket.emit("filesearch start", JSON.stringify({ query, root }));
             });
         });
     }
 }
 
-;// CONCATENATED MODULE: ./node_modules/wispjs/dist/wisp_socket/index.js
+;// CONCATENATED MODULE: ../wispjs/dist/wisp_socket/index.js
+
+
+
 
 /**
  * The primary interface to the Websocket API
@@ -24966,6 +19549,8 @@ class WispSocket {
         this.api = api;
         this.ghToken = ghToken;
         this.consoleCallbacks = [];
+        this.Git = new GitSocket(this);
+        this.Filesystem = new FilesystemSocket(this);
     }
     /**
      * Sets a callback to run on the Websocket Info before saving the details.
@@ -24998,7 +19583,16 @@ class WispSocket {
         if (!this.url || !this.token) {
             throw new Error("Attempted to create a pool without a URL or token");
         }
-        this.pool = new WebsocketPool(this.url, this.token);
+        // Provider used by the pool to refresh the (short-lived) token when a
+        // worker needs to reconnect.
+        const refreshDetails = async () => {
+            await this.setDetails();
+            return { url: this.url, token: this.token };
+        };
+        // The Origin header is the panel the connection originates from, which
+        // is always the API domain.
+        const origin = `https://${this.api.domain}`;
+        this.pool = new WebsocketPool(this.url, this.token, origin, refreshDetails);
     }
     /**
      * Requests and saves the Websocket details from the API
@@ -25013,7 +19607,7 @@ class WispSocket {
             }
             this.url = websocketInfo.url;
             this.token = websocketInfo.token;
-            this.logger.info("Got Websocket Details.", this.url, this.token);
+            this.logger.info(`Got Websocket Details. ${this.url} - ${this.token}`);
         }
         catch (e) {
             this.logger.error(`Failed to get websocket details: ${e}`);
@@ -25042,178 +19636,112 @@ class WispSocket {
         }
     }
     /**
-     * Searches all file contents for the given query
+     * Runs a job on an available pool worker, handing it the worker's socket
+     * and logger. Used for event-based flows (e.g. file search) that don't fit
+     * the {@link request} request/response protocol.
      *
-     * @param query The query string to search for
-     * @param timeout How long to wait (in ms) for results before timing out
+     * @param work The job to run; receives the worker and returns a Promise
+     *
+     * @internal
+     */
+    async runWorker(work) {
+        await this.verifyPool();
+        return await this.pool.run(work);
+    }
+    /**
+     * Generates a short, unique request id for {@link request} correlation.
+     *
+     * @internal
+     */
+    generateReqId() {
+        return Math.random().toString(36).slice(2, 14);
+    }
+    /**
+     * Issues a correlated `fs:request` to the backend and awaits its outcome.
+     *
+     * This is the low-level entry point for the git/filesystem protocol. The
+     * client emits `fs:request` with a JSON-string payload (`{ req, op, ...params }`),
+     * and the backend replies with one of three events, all correlated by `req`
+     * and all carrying a JSON-string `args[0]`:
+     *
+     *   - `fs:result`   — success; resolves with the parsed `data`
+     *   - `fs:error`    — failure; rejects with an {@link FsError} (plus collected `output`)
+     *   - `fs:progress` — streaming stdout/stderr/progress lines (collected for error context)
+     *
+     * Typed convenience wrappers live on {@link GitSocket} ({@link WispSocket.Git})
+     * and {@link FilesystemSocket} ({@link WispSocket.Filesystem}); call this
+     * directly for ops that don't have a typed wrapper yet.
+     *
+     * @example
+     * ```js
+     * const status = await wisp.socket.request("git-status", { directory: "/garrysmod/addons/acf-3" })
+     * ```
+     *
+     * @param op The operation name (e.g. `git-pull`, `list`)
+     * @param params Additional payload fields merged into the request (e.g. `{ directory }`)
+     * @param timeout In milliseconds, how long to wait for the result
      *
      * @public
      */
-    async filesearch(query, timeout = 10000) {
-        this.logger.info("Running filesearch with: ", query);
+    async request(op, params = {}, timeout = 10000) {
         await this.verifyPool();
         return await this.pool.run((worker) => {
             const socket = worker.socket;
             const logger = worker.logger;
-            logger.log("Running filesearch:", query);
+            const req = this.generateReqId();
+            logger.log(`Running fsRequest: ${op}`, params);
             return new Promise((resolve, reject) => {
-                const timeoutObj = setTimeout(() => {
-                    socket.off("filesearch-results");
-                    logger.error("Rejected filesearch: 'Timeout'");
-                    reject();
-                }, timeout);
-                socket.once("filesearch-results", (data) => {
-                    clearTimeout(timeoutObj);
-                    resolve(data);
-                });
-                socket.emit("filesearch-start", query);
-            });
-        });
-    }
-    /**
-     * Performs a git pull operation on the given directory
-     *
-     * @param dir The full directory path to perform a pull on
-     * @param timeout In milliseconds, how long to wait before timing out
-     *
-     * @public
-     */
-    async gitPull(dir, useAuth = false, timeout = 10000) {
-        await this.verifyPool();
-        const pullResult = await this.pool.run((worker) => {
-            const socket = worker.socket;
-            const logger = worker.logger;
-            logger.log("Running gitPull:", dir);
-            return new Promise((resolve, reject) => {
-                let isPrivate = false;
-                let finished;
-                const timeoutObj = setTimeout(() => {
-                    logger.error("Rejected gitPull: 'Timeout'");
-                    finished(false, "Timeout");
-                }, timeout);
-                finished = (success, output) => {
-                    socket.removeAllListeners("git-pull");
-                    socket.removeAllListeners("git-error");
-                    socket.removeAllListeners("git-success");
-                    const result = {
-                        output: output,
-                        isPrivate: isPrivate
-                    };
-                    if (success) {
-                        resolve(result);
+                const progress = [];
+                let resultHandler;
+                let errorHandler;
+                let progressHandler;
+                const parse = (raw) => {
+                    try {
+                        return JSON.parse(raw);
                     }
-                    else {
-                        logger.error("Rejected gitPull:", dir, output);
-                        reject(output);
+                    catch {
+                        logger.error(`Failed to parse fs event for ${op}`, raw);
+                        return undefined;
                     }
+                };
+                const cleanup = () => {
+                    socket.off("fs:result", resultHandler);
+                    socket.off("fs:error", errorHandler);
+                    socket.off("fs:progress", progressHandler);
                     clearTimeout(timeoutObj);
                 };
-                const sendRequest = (includeAuth = false) => {
-                    const data = { dir: dir };
-                    if (includeAuth) {
-                        if (!this.ghToken) {
-                            logger.error("No GitHub token set, can't authenticate");
-                            return finished(false, "Authentication is required, but no GitHub token was set. Can't pull!");
-                        }
-                        isPrivate = true;
-                        data.authkey = this.ghToken;
-                    }
-                    socket.emit("git-pull", data);
-                };
-                socket.once("git-pull", (data) => {
-                    logger.log(`Updating ${data}`);
-                });
-                socket.once("git-success", (commit) => {
-                    logger.log(`Addon updated to ${commit}`);
-                    if (!commit) {
-                        logger.log("No commit given!");
-                    }
-                    finished(true, commit || "");
-                });
-                socket.on("git-error", (message) => {
-                    if (message === "Remote authentication required but no callback set") {
-                        logger.log(`Remote authentication required, trying again with authkey: ${dir}`);
-                        sendRequest(true);
-                    }
-                    else {
-                        logger.log(`Error updating addon: ${message}`);
-                        finished(false, message);
-                    }
-                });
-                sendRequest(useAuth);
-            });
-        });
-        return pullResult;
-    }
-    /**
-     * Clones a new Repo to the given directory
-     *
-     * @param url The HTTPS URL of the repository
-     * @param dir The full path of the directory to clone the repository to
-     * @param branch The branch of the repository to clone
-     * @param timeout In milliseconds, how long to wait before timing out
-     *
-     * @public
-     */
-    async gitClone(url, dir, branch, timeout = 20000) {
-        await this.verifyPool();
-        return await this.pool.run((worker) => {
-            const socket = worker.socket;
-            const logger = worker.logger;
-            logger.log("Running gitClone:", url, dir, branch);
-            return new Promise((resolve, reject) => {
-                let isPrivate = false;
-                let finished;
                 const timeoutObj = setTimeout(() => {
-                    logger.error("Rejected gitClone: 'Timeout'");
-                    finished(false, "Timeout");
+                    cleanup();
+                    logger.error(`fsRequest timed out: ${op} (${req})`);
+                    reject(new Error(`fsRequest timed out: ${op}`));
                 }, timeout);
-                finished = (success, message) => {
-                    socket.removeAllListeners("git-clone");
-                    socket.removeAllListeners("git-error");
-                    socket.removeAllListeners("git-success");
-                    if (success) {
-                        const result = {
-                            isPrivate: isPrivate
-                        };
-                        resolve(result);
-                    }
-                    else {
-                        logger.error("Rejected gitClone:", url, dir, branch, message);
-                        reject(message);
-                    }
-                    clearTimeout(timeoutObj);
+                progressHandler = (raw) => {
+                    const p = parse(raw);
+                    if (!p || p.req !== req)
+                        return;
+                    const line = p.line ?? "";
+                    progress.push(line);
+                    logger.debug(`[${op}] ${p.kind}: ${line}`);
                 };
-                const sendRequest = (includeAuth = false) => {
-                    const data = { dir: dir, url: url, branch: branch };
-                    if (includeAuth) {
-                        if (!this.ghToken) {
-                            logger.error("No GitHub token set, can't authenticate");
-                            return finished(false, "Authentication is required, but no GitHub token was set. Can't clone!");
-                        }
-                        isPrivate = true;
-                        data.authkey = this.ghToken;
-                    }
-                    socket.emit("git-clone", data);
+                resultHandler = (raw) => {
+                    const p = parse(raw);
+                    if (!p || p.req !== req)
+                        return;
+                    cleanup();
+                    resolve(p.data);
                 };
-                socket.once("git-clone", (data) => {
-                    logger.log(`Cloning ${data}`);
-                });
-                socket.once("git-success", () => {
-                    logger.log("Project successfully cloned");
-                    finished(true);
-                });
-                socket.on("git-error", (message) => {
-                    if (message === "Remote authentication required but no callback set") {
-                        logger.log(`Remote authentication required, trying again with authkey: ${dir}`);
-                        sendRequest(true);
-                    }
-                    else {
-                        logger.log("Error cloning repo:", url, dir, branch, message);
-                        finished(false, message);
-                    }
-                });
-                sendRequest();
+                errorHandler = (raw) => {
+                    const p = parse(raw);
+                    if (!p || p.req !== req)
+                        return;
+                    cleanup();
+                    logger.error(`fsRequest error: ${op} - ${p.code}: ${p.message}`);
+                    reject({ ...p, output: progress.join("\n") });
+                };
+                socket.on("fs:result", resultHandler);
+                socket.on("fs:error", errorHandler);
+                socket.on("fs:progress", progressHandler);
+                socket.emit("fs:request", JSON.stringify({ req, op, ...params }));
             });
         });
     }
@@ -25228,8 +19756,7 @@ class WispSocket {
                 const logger = worker.logger;
                 logger.log("Running setupConsoleListener");
                 return new Promise((resolve) => {
-                    worker.socket.on("console", (data) => {
-                        const line = data.line;
+                    worker.socket.on("console output", (line) => {
                         if (this.consoleCallbacks.length == 0) {
                             return resolve();
                         }
@@ -25318,16 +19845,16 @@ class WispSocket {
                 let callback;
                 const timeoutObj = setTimeout(() => {
                     logger.error(`Command timed out current output: '${output}'`);
-                    socket.off("console", callback);
+                    socket.off("console output", callback);
                     logger.log("Rejected sendCommandNonce 'Timeout'", nonce, command);
                     reject("Timeout");
                 }, timeout);
-                callback = (data) => {
-                    const line = data.line;
-                    if (line.startsWith(nonce)) {
-                        const message = line.slice(nonce.length);
+                callback = (line) => {
+                    const clean = stripAnsi(line);
+                    if (clean.startsWith(nonce)) {
+                        const message = clean.slice(nonce.length);
                         if (message === "Done.") {
-                            socket.off("console", callback);
+                            socket.off("console output", callback);
                             clearTimeout(timeoutObj);
                             resolve(output);
                         }
@@ -25337,14 +19864,14 @@ class WispSocket {
                         }
                     }
                 };
-                socket.on("console", callback);
+                socket.on("console output", callback);
                 socket.emit("send command", command);
             });
         });
     }
 }
 
-;// CONCATENATED MODULE: ./node_modules/wispjs/dist/wisp.js
+;// CONCATENATED MODULE: ../wispjs/dist/wisp.js
 
 
 /**
@@ -25382,232 +19909,176 @@ class WispInterface {
 
 ;// CONCATENATED MODULE: ./src/discord.ts
 const MAX_EMBEDS_PER_MESSAGE = 10;
+const MAX_TOTAL_EMBED_SIZE = 6000;
 const MAX_DESCRIPTION_LENGTH = 4000;
+const MAX_UPDATE_DESCRIPTION_LENGTH = 2048;
+const MAX_COMMIT_MESSAGE_LENGTH = 50;
 const EMBED_COLORS = {
     update: 0x1E90FF,
     delete: 0xFF4500,
     create: 0x32CD32,
 };
 const hiddenURL = "https://github.com/404";
+const makeEmbed = (embed) => ({
+    ...embed,
+    timestamp: new Date().toISOString(),
+});
+const embedSize = (embed) => embed.title.length + embed.description.length;
+const chunkEmbeds = (embeds) => {
+    const chunks = [];
+    for (const embed of embeds) {
+        const chunk = chunks[chunks.length - 1];
+        const chunkSize = chunk?.reduce((total, e) => total + embedSize(e), 0) ?? 0;
+        const fits = chunk
+            && chunk.length < MAX_EMBEDS_PER_MESSAGE
+            && chunkSize + embedSize(embed) <= MAX_TOTAL_EMBED_SIZE;
+        if (fits) {
+            chunk.push(embed);
+        }
+        else {
+            chunks.push([embed]);
+        }
+    }
+    return chunks;
+};
 const getLinkForAddon = (addon) => {
     const url = `${addon.url.replace(".git", "")}/tree/${addon.branch}`;
     return `[**${addon.name}**](${url})`;
 };
-const generateUpdateEmbed = (addonUpdate) => {
-    const { addon, updateInfo, isPrivate } = addonUpdate;
-    const maxMessageLength = 50;
-    const embedTitle = `🚀 Updates for: **\`${addon.name}\`**`;
-    const diffURL = updateInfo?.url;
-    const commits = updateInfo?.commits || [];
-    const commitList = commits.map((commit) => {
-        if (isPrivate) {
-            commit.message = commit.message.replace(/[^ ]/g, "❚");
-            commit.author.username = "?";
-            commit.author.url = hiddenURL;
-            commit.url = hiddenURL;
-            commit.sha = commit.sha.replace(/[^ ]/g, "❚");
-        }
-        return commit;
-    });
-    const commitBody = commitList.map((commit) => {
-        let message = commit.message;
-        if (message.length > maxMessageLength) {
-            message = `${message.substring(0, maxMessageLength)}...`;
-        }
-        let commitPrefix = commit.verified ? "✅" : "#️⃣";
-        if (isPrivate) {
-            commitPrefix = "🔒";
-        }
-        const timestamp = Date.parse(commit.date) / 1000;
-        const timeLine = `_(<t:${timestamp}:R>)_`;
-        const shortSha = commit.sha.substring(0, 6);
-        const commitLink = `[\`${commitPrefix}${shortSha}\`](${commit.url})`;
-        const authorLink = `[@${commit.author.username}](${commit.author.url})`;
-        const commitLine = `**${authorLink} - ${commitLink}:**᲼${timeLine}`;
-        const commitMessage = `\`\`\`${message}\`\`\``;
-        return `${commitLine}\n${commitMessage}`;
-    });
-    console.log("Generated commits:", commitBody.length);
-    let description = "";
-    for (let i = 0; i < commitBody.length; i++) {
-        const andMore = `\n_And ${commitBody.length - i} more..._`;
-        const commit = commitBody[i];
-        if (description.length + commit.length > (2048 - andMore.length)) {
-            console.log("Truncating commits:", commitBody.length - i);
-            description += andMore;
-            break;
-        }
-        description += `${commit}\n`;
+const formatCommit = (commit, isPrivate) => {
+    const mask = (text) => text.replace(/[^ ]/g, "❚");
+    let message = isPrivate ? mask(commit.message) : commit.message;
+    if (message.length > MAX_COMMIT_MESSAGE_LENGTH) {
+        message = `${message.substring(0, MAX_COMMIT_MESSAGE_LENGTH)}...`;
     }
-    const embed = {
-        title: embedTitle,
-        description: description,
-        url: diffURL,
-        timestamp: new Date().toISOString(),
-    };
-    console.log("Generated update embed:", embed);
-    return embed;
+    const sha = (isPrivate ? mask(commit.sha) : commit.sha).substring(0, 6);
+    const prefix = isPrivate ? "🔒" : commit.verified ? "✅" : "#️⃣";
+    const username = isPrivate ? "?" : commit.author.username;
+    const authorURL = isPrivate ? hiddenURL : commit.author.url;
+    const commitURL = isPrivate ? hiddenURL : commit.url;
+    const time = `_(<t:${Date.parse(commit.date) / 1000}:R>)_`;
+    const header = `**[@${username}](${authorURL}) - [\`${prefix}${sha}\`](${commitURL}):**᲼${time}`;
+    return `${header}\n\`\`\`${message}\`\`\``;
 };
-const generateDeleteEmbed = (addonUpdates) => {
-    const embedTitle = `🗑️ Removed`;
-    const addonList = addonUpdates.map((change) => {
-        return `- [**${change.addon.name}**](${change.addon.url})`;
-    }).join('\n');
-    const embed = {
-        title: embedTitle,
-        description: addonList,
-        timestamp: new Date().toISOString(),
-    };
-    return embed;
+const buildUpdateDescription = (commitLines) => {
+    let description = "";
+    for (let i = 0; i < commitLines.length; i++) {
+        const andMore = `\n_And ${commitLines.length - i} more..._`;
+        if (description.length + commitLines[i].length > MAX_UPDATE_DESCRIPTION_LENGTH - andMore.length) {
+            return description + andMore;
+        }
+        description += `${commitLines[i]}\n`;
+    }
+    return description;
 };
-const generateAddedEmbed = (addonUpdates) => {
-    const embedTitle = `✨ New Addons`;
-    const commitList = addonUpdates.map((change) => {
-        const url = change.isPrivate ? hiddenURL : `${change.addon.url}/tree/${change.addon.branch}`;
-        const name = change.addon.name || change.addon.repo;
-        return `- [**${name}**](${url})`;
-    }).join('\n');
-    const embed = {
-        title: embedTitle,
-        description: commitList,
-        timestamp: new Date().toISOString(),
-    };
-    return embed;
+const generateUpdateEmbed = (update) => {
+    const { addon, updateInfo, isPrivate = false } = update;
+    const commits = updateInfo?.commits ?? [];
+    return makeEmbed({
+        title: `🚀 Updates for: **\`${addon.name}\`**`,
+        description: buildUpdateDescription(commits.map(commit => formatCommit(commit, isPrivate))),
+        url: isPrivate ? hiddenURL : updateInfo?.url,
+        color: EMBED_COLORS.update,
+    });
+};
+const generateDeleteEmbed = (deletes) => makeEmbed({
+    title: "🗑️ Removed",
+    description: deletes.map(({ addon }) => `- [**${addon.name}**](${addon.url})`).join("\n"),
+    color: EMBED_COLORS.delete,
+});
+const generateAddedEmbed = (creates) => makeEmbed({
+    title: "✨ New Addons",
+    description: creates.map(({ addon, isPrivate }) => {
+        const url = isPrivate ? hiddenURL : `${addon.url}/tree/${addon.branch}`;
+        return `- [**${addon.name || addon.repo}**](${url})`;
+    }).join("\n"),
+    color: EMBED_COLORS.create,
+});
+const failureSection = (title, failures) => {
+    if (failures.length === 0) {
+        return null;
+    }
+    const list = failures.map(({ addon, error }) => `- ${getLinkForAddon(addon)}: \`${error}\``);
+    return `${title}\n${list.join("\n")}`;
 };
 const sendWebhook = async (webhook, embeds, content) => {
-    const body = JSON.stringify({ embeds: embeds, content: content });
-    const headers = new Headers({
-        "Content-Type": "application/json",
-    });
-    const response = await fetch(webhook, { method: "POST", body: body, headers: headers });
+    const body = JSON.stringify({ embeds, content });
+    const headers = new Headers({ "Content-Type": "application/json" });
+    const response = await fetch(webhook, { method: "POST", body, headers });
     if (!response.ok) {
         console.error("Failed to send webhook", response.statusText, response.status, await response.text());
     }
+    else {
+        console.log(`Webhook sent (${response.status}, ${embeds.length} embed(s))`);
+    }
     return response.ok;
 };
-const generateUpdateWebhook = async (addonUpdates, alertWebhook, serverName) => {
-    const updates = [];
-    addonUpdates.update.forEach(update => {
-        updates.push({
-            ...generateUpdateEmbed(update),
-            color: EMBED_COLORS.update,
-        });
-    });
-    // Function to send a webhook for a chunk of embeds
-    const sendUpdate = async (embeds) => {
+const generateUpdateWebhook = async (changes, alertWebhook, serverName) => {
+    const send = (embeds) => {
         if (!alertWebhook) {
             throw new Error("No webhook URL provided");
         }
-        console.log("Sending webhook to:", alertWebhook);
-        const content = `🔸 Addon Updates for: **\`${serverName}\`**`;
-        return sendWebhook(alertWebhook, embeds, content);
+        return sendWebhook(alertWebhook, embeds, `🔸 Addon Updates for: **\`${serverName}\`**`);
     };
-    // Send Additions
-    const newAndDeleted = [];
-    if (addonUpdates.create.length > 0) {
-        const creates = generateAddedEmbed(addonUpdates.create);
-        newAndDeleted.push({ ...creates, color: EMBED_COLORS.create });
+    const summary = [];
+    if (changes.create.length > 0) {
+        summary.push(generateAddedEmbed(changes.create));
     }
-    // Send Deletions
-    if (addonUpdates.delete.length > 0) {
-        const deletes = generateDeleteEmbed(addonUpdates.delete);
-        newAndDeleted.push({ ...deletes, color: EMBED_COLORS.delete });
+    if (changes.delete.length > 0) {
+        summary.push(generateDeleteEmbed(changes.delete));
     }
-    if (newAndDeleted.length > 0) {
-        const success = await sendUpdate(newAndDeleted);
-        if (!success) {
-            console.error('Failed to send webhook for new and deleted addons:', newAndDeleted);
-        }
+    if (summary.length > 0) {
+        await send(summary);
     }
-    for (let i = 0; i < updates.length; i += 10) {
-        const chunk = updates.slice(i, i + 10);
-        const success = await sendUpdate(chunk);
-        if (!success) {
-            console.error('Failed to send webhook for chunk:', chunk);
-        }
+    const updates = changes.update.map(generateUpdateEmbed);
+    const chunks = chunkEmbeds(updates);
+    console.log(`Sending ${updates.length} update embed(s) across ${chunks.length} message(s)`);
+    for (const chunk of chunks) {
+        await send(chunk);
     }
 };
-const generateFailureWebhook = async (addonFailures, alertWebhook, serverName) => {
-    const bodyHeader = `### ❌ Failures encountered while updating: **\`${serverName}\`**\n\n`;
-    let body = "";
-    const deletes = addonFailures.delete;
-    if (deletes.length > 0) {
-        body = body + `🗑️ Failed to remove addons:\n`;
-        const addonList = deletes.map((change) => {
-            const url = getLinkForAddon(change.addon);
-            return `- ${url}: \`${change.error}\``;
-        });
-        body = body + addonList.join('\n');
-    }
-    const creates = addonFailures.create;
-    if (creates.length > 0) {
-        body = body + `✨ Failed to add addons:\n`;
-        const addonList = creates.map((change) => {
-            const url = getLinkForAddon(change.addon);
-            return `- ${url}: \`${change.error}\``;
-        });
-        body = body + addonList.join('\n');
-    }
-    const updates = addonFailures.update;
-    if (updates.length > 0) {
-        body = body + `🚀 Failed to update addons:\n`;
-        const addonList = updates.map((change) => {
-            const url = getLinkForAddon(change.addon);
-            return `- ${url}: \`${change.error}\``;
-        });
-        body = body + addonList.join('\n');
-    }
-    if (body.length === 0) {
+const generateFailureWebhook = async (failures, alertWebhook, serverName) => {
+    const sections = [
+        failureSection("🗑️ Failed to remove addons:", failures.delete),
+        failureSection("✨ Failed to add addons:", failures.create),
+        failureSection("🚀 Failed to update addons:", failures.update),
+    ].filter((section) => section !== null);
+    if (sections.length === 0) {
         console.log("No failures to report");
         return;
     }
-    body = bodyHeader + body;
-    console.log("Sending failure webhook to:", alertWebhook);
-    const requestBody = JSON.stringify({ content: body });
-    const headers = new Headers({
-        "Content-Type": "application/json",
-    });
-    const response = await fetch(alertWebhook, { method: "POST", body: requestBody, headers: headers });
-    if (!response.ok) {
-        console.error("Failed to send webhook", response.statusText, response.status, await response.text());
-    }
-    return response.ok;
+    const header = `### ❌ Failures encountered while updating: **\`${serverName}\`**`;
+    return sendWebhook(alertWebhook, [], [header, ...sections].join("\n\n"));
 };
 const splitConfigDiffIntoEmbeds = (serverName, configDiff) => {
     const firstTitle = `📜 Server Config Update: **\`${serverName}\`**`;
-    const lines = configDiff.split('\n');
     const embeds = [];
-    let currentDescription = "```diff\n";
+    let description = "```diff\n";
     let isFirstEmbed = true;
-    for (const line of lines) {
-        const lineWithNewline = line + '\n';
-        if ((currentDescription + lineWithNewline).length > MAX_DESCRIPTION_LENGTH - 3) {
-            currentDescription += "```";
-            embeds.push({
-                title: isFirstEmbed ? firstTitle : "cont.",
-                description: currentDescription,
-                timestamp: new Date().toISOString(),
-            });
-            currentDescription = "```diff\n" + lineWithNewline;
-            isFirstEmbed = false;
+    const flush = () => {
+        embeds.push(makeEmbed({
+            title: isFirstEmbed ? firstTitle : "cont.",
+            description: description + "```",
+        }));
+        isFirstEmbed = false;
+    };
+    for (const line of configDiff.split("\n")) {
+        const lineWithNewline = line + "\n";
+        if ((description + lineWithNewline).length > MAX_DESCRIPTION_LENGTH - 3) {
+            flush();
+            description = "```diff\n" + lineWithNewline;
         }
         else {
-            currentDescription += lineWithNewline;
+            description += lineWithNewline;
         }
     }
-    currentDescription += "```";
-    embeds.push({
-        title: isFirstEmbed ? firstTitle : "cont.",
-        description: currentDescription,
-        timestamp: new Date().toISOString(),
-    });
+    flush();
     return embeds;
 };
 const sendServerConfigEmbed = async (webhook, serverName, configDiff) => {
     const embeds = splitConfigDiffIntoEmbeds(serverName, configDiff);
-    for (let i = 0; i < embeds.length; i += MAX_EMBEDS_PER_MESSAGE) {
-        const embedChunk = embeds.slice(i, i + MAX_EMBEDS_PER_MESSAGE);
-        await sendWebhook(webhook, embedChunk, "");
+    for (const chunk of chunkEmbeds(embeds)) {
+        await sendWebhook(webhook, chunk, "");
     }
 };
 
@@ -25634,12 +20105,9 @@ const getGithubFile = async (ghPAT, owner, repo, path) => {
 };
 const gitCommitDiff = async (ghPAT, owner, repo, oldSHA, newSHA) => {
     const octokit = new dist_node.Octokit({ auth: ghPAT });
-    // get first 6 of each sha
-    oldSHA = oldSHA.substring(0, 6);
-    newSHA = newSHA.substring(0, 6);
     const basehead = `${oldSHA}...${newSHA}`;
     const path = "/repos/{owner}/{repo}/compare/{basehead}";
-    console.log(`Getting diff between ${oldSHA} and ${newSHA} from ${repo} owned by ${owner}. Path: ${path}`);
+    console.log(`Getting diff between ${oldSHA.substring(0, 6)} and ${newSHA.substring(0, 6)} from ${repo} owned by ${owner}. Path: ${path}`);
     const content = await octokit.request(`GET ${path}`, {
         owner: owner,
         repo: repo,
@@ -25708,6 +20176,33 @@ const requestHashes = async (ghPAT, addons) => {
         console.error('Error fetching commit hashes:', error);
         throw error;
     }
+};
+// Looks up the isPrivate flag for addons we're about to clone (they aren't
+// installed yet, so they're absent from the remote git info map). Returns a
+// map of addon url -> isPrivate.
+const getRepoPrivacy = async (ghPAT, addons) => {
+    const result = {};
+    if (addons.length === 0) {
+        return result;
+    }
+    const octokit = new dist_node.Octokit({ auth: ghPAT });
+    let query = `query {`;
+    addons.forEach((addon, index) => {
+        query += `
+      repo${index}: repository(owner: "${addon.owner}", name: "${addon.repo}") {
+        isPrivate
+      }
+    `;
+    });
+    query += `}`;
+    const response = await octokit.graphql(query);
+    for (const [key, item] of Object.entries(response)) {
+        const addonIndex = parseInt(key.substring(4));
+        const addon = addons[addonIndex];
+        // Default missing/inaccessible repos to private so we never leak a URL
+        result[addon.url] = item?.isPrivate ?? true;
+    }
+    return result;
 };
 const getLatestCommitHashes = async (ghPAT, addons) => {
     const fullResults = {};
@@ -27806,6 +22301,34 @@ const logger = {
     info: console.log,
     error: console.error
 };
+// Normalizes anything thrown into a readable string. wispjs git ops reject
+// with an FsError object ({ code, message, req, output }); timeouts and other
+// failures reject with Error or string.
+const errorToMessage = (e) => {
+    if (typeof e === "string") {
+        return e;
+    }
+    if (e instanceof Error) {
+        return e.message;
+    }
+    if (e && typeof e === "object") {
+        const parts = [];
+        if (e.message) {
+            parts.push(e.message);
+        }
+        if (e.code) {
+            parts.push(`(${e.code})`);
+        }
+        if (e.output) {
+            parts.push(`- ${e.output}`);
+        }
+        if (parts.length > 0) {
+            return parts.join(" ");
+        }
+        return JSON.stringify(e);
+    }
+    return String(e);
+};
 const getOwnerRepoFromURL = (url) => {
     // "https://github.com/cfc-servers/cfc_cl_http_whitelist.git"
     // [ "https:", "", "github.com", "cfc-servers", "cfc_cl_http_whitelist.git" ]
@@ -27826,7 +22349,7 @@ const buildCurrentGitInfo = async (wisp) => {
         const uuid = (Math.random() + 1).toString(36).substring(7);
         const nonce = `nanny-${uuid}`;
         const command = `nanny ${nonce} gitinfo`;
-        await wisp.socket.sendCommandNonce(`${nonce}: `, command);
+        await wisp.socket.sendCommandNonce(nonce, command);
         logger.info("Server has generated new git info - Reading the file now");
     }
     catch (e) {
@@ -27873,22 +22396,21 @@ const getDesiredAddons = async (controlFile) => {
     }
     return desiredAddons;
 };
-const cloneAddons = async (wisp, desiredAddons) => {
+const cloneAddons = async (wisp, desiredAddons, privacyMap) => {
     const successes = [];
     const failures = [];
     const addonClones = desiredAddons.map((addon) => {
         const url = `${addon.url}.git`;
         const branch = addon.branch;
         logger.info(`Cloning ${url} to /garrysmod/addons`);
-        return wisp.socket.gitClone(url, "/garrysmod/addons", branch);
+        return wisp.socket.Git.clone(url, "/garrysmod/addons", branch);
     });
     const results = await Promise.allSettled(addonClones);
     for (const [index, result] of results.entries()) {
         const desiredAddon = desiredAddons[index];
         const url = desiredAddon.url;
         if (result.status == "fulfilled") {
-            const value = result.value;
-            const isPrivate = value.isPrivate;
+            const isPrivate = privacyMap[desiredAddon.url] ?? true;
             const createdAddon = {
                 addon: desiredAddon,
                 isPrivate: isPrivate
@@ -27904,7 +22426,7 @@ const cloneAddons = async (wisp, desiredAddons) => {
             successes.push(createdAddon);
         }
         else {
-            const reason = result.reason;
+            const reason = errorToMessage(result.reason);
             const failedUpdate = {
                 addon: desiredAddon,
                 error: reason
@@ -27929,20 +22451,14 @@ const errorsTriggeringReclone = {
 const updateAddon = async (wisp, addon) => {
     let pullResult;
     try {
-        pullResult = await wisp.socket.gitPull(addon.path);
+        pullResult = await wisp.socket.Git.pull(addon.path);
         logger.info("Got pull result:", pullResult);
     }
     catch (e) {
-        let errorMessage = "Unknown Error";
-        if (typeof e === "string") {
-            errorMessage = e;
-        }
-        else if (e instanceof Error) {
-            errorMessage = e.toString();
-        }
+        const errorMessage = errorToMessage(e);
         logger.info("Full error message on pull:", `${errorMessage}'`);
         const isPrimaryBranch = addon.branch == "main" || addon.branch == "master";
-        const canReclone = errorsTriggeringReclone[errorMessage];
+        const canReclone = Object.keys(errorsTriggeringReclone).some((trigger) => errorMessage.includes(trigger));
         if (canReclone) {
             if (isPrimaryBranch) {
                 logger.info(`'${errorMessage}' on primary branch pull. Ignoring in case it's temporary.`, addon.path, addon.branch);
@@ -27952,12 +22468,12 @@ const updateAddon = async (wisp, addon) => {
                 logger.info(`'${errorMessage}' on nonstandared branch pull - deleting and recloning`, addon.path);
                 // Delete and reclone
                 await wisp.api.Filesystem.DeleteFiles([addon.path]);
-                await wisp.socket.gitClone(addon.url, "/garrysmod/addons", addon.branch);
+                await wisp.socket.Git.clone(addon.url, "/garrysmod/addons", addon.branch);
                 if (addon.name !== addon.repo) {
                     logger.info(`Recloned a broken repo that has a custom name: ${addon.url} wants to be at ${addon.name}`);
                     await wisp.api.Filesystem.RenameFile(`/garrysmod/addons/${addon.repo}`, `/garrysmod/addons/${addon.name}`);
                 }
-                pullResult = await wisp.socket.gitPull(addon.path);
+                pullResult = await wisp.socket.Git.pull(addon.path);
             }
         }
         else {
@@ -27965,10 +22481,9 @@ const updateAddon = async (wisp, addon) => {
         }
     }
     const addonUpdate = {
-        addon: addon,
-        isPrivate: pullResult.isPrivate
+        addon: addon
     };
-    return { update: addonUpdate, newCommit: pullResult.output };
+    return { update: addonUpdate, newCommit: pullResult.commit };
 };
 const processControlFile = async (controlFile, toClone, toUpdate, toDelete, installedAddons) => {
     const desiredAddons = await getDesiredAddons(controlFile);
@@ -28022,13 +22537,7 @@ const handleDeleteQueue = async (wisp, toDelete, allChanges, allFailures) => {
             allChanges.delete.push(change);
         }
         catch (e) {
-            let errorMessage = "Unknown Error";
-            if (typeof e === "string") {
-                errorMessage = e;
-            }
-            else if (e instanceof Error) {
-                errorMessage = e.toString();
-            }
+            const errorMessage = errorToMessage(e);
             const failure = {
                 addon: addon,
                 error: errorMessage
@@ -28039,8 +22548,9 @@ const handleDeleteQueue = async (wisp, toDelete, allChanges, allFailures) => {
         }
     }
 };
-const handleCloneQueue = async (wisp, toClone, allChanges, allFailures) => {
-    const cloneResult = await cloneAddons(wisp, toClone);
+const handleCloneQueue = async (wisp, ghPAT, toClone, allChanges, allFailures) => {
+    const privacyMap = await getRepoPrivacy(ghPAT, toClone);
+    const cloneResult = await cloneAddons(wisp, toClone, privacyMap);
     const failures = cloneResult.failures;
     const successes = cloneResult.successes;
     if (failures && failures.length > 0) {
@@ -28056,7 +22566,7 @@ const handleCloneQueue = async (wisp, toClone, allChanges, allFailures) => {
         }
     }
 };
-const handleUpdateQueue = async (wisp, ghPAT, toUpdate, allChanges, allFailures) => {
+const handleUpdateQueue = async (wisp, ghPAT, remoteGitInfo, toUpdate, allChanges, allFailures) => {
     const addonUpdates = toUpdate.map((addon) => updateAddon(wisp, addon));
     const results = await Promise.allSettled(addonUpdates);
     logger.info("Handled all updates in the queue");
@@ -28084,13 +22594,13 @@ const handleUpdateQueue = async (wisp, ghPAT, toUpdate, allChanges, allFailures)
             const changeInfo = {
                 addon: update.addon,
                 updateInfo: change,
-                isPrivate: update.isPrivate
+                isPrivate: remoteGitInfo[addon.url]?.isPrivate ?? true
             };
             allChanges.update.push(changeInfo);
         }
         else {
             const addon = toUpdate[index];
-            const errorMessage = result.reason;
+            const errorMessage = errorToMessage(result.reason);
             const failure = {
                 addon: addon,
                 error: errorMessage
@@ -28152,7 +22662,7 @@ async function manageAddons(wisp, serverName, ghPAT, alertWebhook, failureWebhoo
     }
     // New Addons
     if (toClone.length > 0) {
-        await handleCloneQueue(wisp, toClone, allChanges, allFailures);
+        await handleCloneQueue(wisp, ghPAT, toClone, allChanges, allFailures);
     }
     else {
         logger.info("No addons to clone");
@@ -28173,7 +22683,7 @@ async function manageAddons(wisp, serverName, ghPAT, alertWebhook, failureWebhoo
         let filtered = toUpdate.filter((addon) => !badBranches.includes(addon));
         // Filter out addons that don't need an update
         filtered = filterUpdateQueue(filtered, remoteGitInfo);
-        await handleUpdateQueue(wisp, ghPAT, filtered, allChanges, allFailures);
+        await handleUpdateQueue(wisp, ghPAT, remoteGitInfo, filtered, allChanges, allFailures);
     }
     else {
         logger.info("No addons to update");

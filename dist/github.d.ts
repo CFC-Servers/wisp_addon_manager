@@ -1,4 +1,4 @@
-import type { AddonURLToAddonMap, AddonRemoteGitInfoMap } from "./index_types.js";
+import type { AddonURLToAddonMap, AddonRemoteGitInfoMap, DesiredAddon } from "./index_types.js";
 export declare const getGithubFile: (ghPAT: string, owner: string, repo: string, path: string) => Promise<string>;
 interface AuthorDTO {
     username: string;
@@ -19,5 +19,8 @@ export interface CompareDTO {
 }
 export declare const gitCommitDiff: (ghPAT: string, owner: string, repo: string, oldSHA: string, newSHA: string) => Promise<CompareDTO>;
 export declare const requestHashes: (ghPAT: string, addons: AddonURLToAddonMap) => Promise<AddonRemoteGitInfoMap>;
+export declare const getRepoPrivacy: (ghPAT: string, addons: DesiredAddon[]) => Promise<{
+    [url: string]: boolean;
+}>;
 export declare const getLatestCommitHashes: (ghPAT: string, addons: AddonURLToAddonMap) => Promise<AddonRemoteGitInfoMap>;
 export {};

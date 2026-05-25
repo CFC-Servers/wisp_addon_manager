@@ -1,5 +1,5 @@
 import { Octokit } from "@octokit/rest";
-import type { AddonRemoteGitInfo, AddonURLToAddonMap, AddonRemoteGitInfoMap }  from "./index_types.js";
+import type { AddonRemoteGitInfo, AddonURLToAddonMap, AddonRemoteGitInfoMap, DesiredAddon }  from "./index_types.js";
 
 export const getGithubFile = async (ghPAT: string, owner: string, repo: string, path: string) => {
   const octokit = new Octokit({ 
@@ -133,13 +133,9 @@ export interface CompareDTO {
 export const gitCommitDiff = async (ghPAT: string, owner: string, repo: string, oldSHA: string, newSHA: string) => {
   const octokit = new Octokit({ auth: ghPAT })
 
-  // get first 6 of each sha
-  oldSHA = oldSHA.substring(0, 6)
-  newSHA = newSHA.substring(0, 6)
-
   const basehead = `${oldSHA}...${newSHA}`
   const path = "/repos/{owner}/{repo}/compare/{basehead}"
-  console.log(`Getting diff between ${oldSHA} and ${newSHA} from ${repo} owned by ${owner}. Path: ${path}`)
+  console.log(`Getting diff between ${oldSHA.substring(0, 6)} and ${newSHA.substring(0, 6)} from ${repo} owned by ${owner}. Path: ${path}`)
 
   const content = await octokit.request(`GET ${path}`, {
     owner: owner,
@@ -231,6 +227,37 @@ export const requestHashes = async (ghPAT: string, addons: AddonURLToAddonMap) =
     console.error('Error fetching commit hashes:', error);
     throw error;
   }
+}
+
+// Looks up the isPrivate flag for addons we're about to clone (they aren't
+// installed yet, so they're absent from the remote git info map). Returns a
+// map of addon url -> isPrivate.
+export const getRepoPrivacy = async (ghPAT: string, addons: DesiredAddon[]): Promise<{[url: string]: boolean}> => {
+  const result: {[url: string]: boolean} = {};
+  if (addons.length === 0) { return result; }
+
+  const octokit = new Octokit({ auth: ghPAT });
+
+  let query = `query {`;
+  addons.forEach((addon, index) => {
+    query += `
+      repo${index}: repository(owner: "${addon.owner}", name: "${addon.repo}") {
+        isPrivate
+      }
+    `;
+  });
+  query += `}`;
+
+  const response: {[index: string]: { isPrivate: boolean } | null} = await octokit.graphql(query);
+
+  for (const [key, item] of Object.entries(response)) {
+    const addonIndex = parseInt(key.substring(4));
+    const addon = addons[addonIndex];
+    // Default missing/inaccessible repos to private so we never leak a URL
+    result[addon.url] = item?.isPrivate ?? true;
+  }
+
+  return result;
 }
 
 export const getLatestCommitHashes = async (ghPAT: string, addons: AddonURLToAddonMap) => {

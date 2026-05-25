@@ -10,6 +10,6 @@ export interface FailureMap {
     delete: AddonDeleteFailure[];
     create: AddonCreateFailure[];
 }
-export declare const generateUpdateWebhook: (addonUpdates: ChangeMap, alertWebhook: string, serverName: string) => Promise<void>;
-export declare const generateFailureWebhook: (addonFailures: FailureMap, alertWebhook: string, serverName: string) => Promise<boolean | undefined>;
+export declare const generateUpdateWebhook: (changes: ChangeMap, alertWebhook: string, serverName: string) => Promise<void>;
+export declare const generateFailureWebhook: (failures: FailureMap, alertWebhook: string, serverName: string) => Promise<boolean | undefined>;
 export declare const sendServerConfigEmbed: (webhook: string, serverName: string, configDiff: string) => Promise<void>;

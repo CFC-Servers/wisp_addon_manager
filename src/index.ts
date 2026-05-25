@@ -2,7 +2,7 @@ import YAML from "yaml"
 
 import { WispInterface } from "wispjs"
 import { generateUpdateWebhook, generateFailureWebhook } from "./discord.js"
-import { gitCommitDiff, getLatestCommitHashes } from "./github.js"
+import { gitCommitDiff, getLatestCommitHashes, getRepoPrivacy } from "./github.js"
 import { updateServerConfig } from "./server_config.js"
 
 import type { CompareDTO } from "./github.js"
@@ -15,6 +15,23 @@ import type { ServerGitInfoFile } from "./index_types.js"
 const logger = {
   info: console.log,
   error: console.error
+}
+
+// Normalizes anything thrown into a readable string. wispjs git ops reject
+// with an FsError object ({ code, message, req, output }); timeouts and other
+// failures reject with Error or string.
+const errorToMessage = (e: any): string => {
+  if (typeof e === "string") { return e }
+  if (e instanceof Error) { return e.message }
+  if (e && typeof e === "object") {
+    const parts: string[] = []
+    if (e.message) { parts.push(e.message) }
+    if (e.code) { parts.push(`(${e.code})`) }
+    if (e.output) { parts.push(`- ${e.output}`) }
+    if (parts.length > 0) { return parts.join(" ") }
+    return JSON.stringify(e)
+  }
+  return String(e)
 }
 
 const getOwnerRepoFromURL = (url: string) => {
@@ -43,7 +60,7 @@ const buildCurrentGitInfo = async(wisp: WispInterface) => {
     const uuid = (Math.random() + 1).toString(36).substring(7)
     const nonce = `nanny-${uuid}`
     const command = `nanny ${nonce} gitinfo`
-    await wisp.socket.sendCommandNonce(`${nonce}: `, command)
+    await wisp.socket.sendCommandNonce(nonce, command)
     logger.info("Server has generated new git info - Reading the file now")
   } catch(e) {
     logger.error("Failed to generate current git info (Is the server down?) - Reading the file instead")
@@ -103,7 +120,7 @@ const getDesiredAddons = async (controlFile: string) => {
   return desiredAddons
 }
 
-const cloneAddons = async (wisp: WispInterface, desiredAddons: DesiredAddon[]) => {
+const cloneAddons = async (wisp: WispInterface, desiredAddons: DesiredAddon[], privacyMap: {[url: string]: boolean}) => {
   const successes: AddonCreateInfo[] = []
   const failures: AddonCreateFailure[] = []
 
@@ -112,7 +129,7 @@ const cloneAddons = async (wisp: WispInterface, desiredAddons: DesiredAddon[]) =
     const branch = addon.branch
 
     logger.info(`Cloning ${url} to /garrysmod/addons`)
-    return wisp.socket.gitClone(url, "/garrysmod/addons", branch)
+    return wisp.socket.Git.clone(url, "/garrysmod/addons", branch)
   });
 
   const results = await Promise.allSettled(addonClones)
@@ -122,8 +139,7 @@ const cloneAddons = async (wisp: WispInterface, desiredAddons: DesiredAddon[]) =
     const url = desiredAddon.url
 
     if (result.status == "fulfilled") {
-      const value = result.value
-      const isPrivate = value.isPrivate
+      const isPrivate = privacyMap[desiredAddon.url] ?? true
 
       const createdAddon: AddonCreateInfo = {
         addon: desiredAddon,
@@ -142,7 +158,7 @@ const cloneAddons = async (wisp: WispInterface, desiredAddons: DesiredAddon[]) =
 
       successes.push(createdAddon)
     } else {
-      const reason = result.reason
+      const reason = errorToMessage(result.reason)
 
       const failedUpdate: AddonCreateFailure = {
         addon: desiredAddon,
@@ -164,7 +180,6 @@ const cloneAddons = async (wisp: WispInterface, desiredAddons: DesiredAddon[]) =
 interface AddonUpdate {
   addon: InstalledAddon
   change?: CompareDTO
-  isPrivate: boolean
 }
 
 /*
@@ -178,20 +193,15 @@ const errorsTriggeringReclone: {[key: string]: boolean} = {
 const updateAddon = async (wisp: WispInterface, addon: InstalledAddon) => {
   let pullResult
   try {
-    pullResult = await wisp.socket.gitPull(addon.path)
+    pullResult = await wisp.socket.Git.pull(addon.path)
     logger.info("Got pull result:", pullResult)
   } catch (e: any) {
-    let errorMessage = "Unknown Error"
-    if (typeof e === "string") {
-      errorMessage = e
-    } else if (e instanceof Error) {
-      errorMessage = e.toString()
-    }
+    const errorMessage = errorToMessage(e)
 
     logger.info("Full error message on pull:", `${errorMessage}'`)
 
     const isPrimaryBranch = addon.branch == "main" || addon.branch == "master"
-    const canReclone = errorsTriggeringReclone[errorMessage]
+    const canReclone = Object.keys(errorsTriggeringReclone).some((trigger) => errorMessage.includes(trigger))
 
     if (canReclone) {
         if (isPrimaryBranch) {
@@ -202,14 +212,14 @@ const updateAddon = async (wisp: WispInterface, addon: InstalledAddon) => {
 
             // Delete and reclone
             await wisp.api.Filesystem.DeleteFiles([addon.path])
-            await wisp.socket.gitClone(addon.url, "/garrysmod/addons", addon.branch)
+            await wisp.socket.Git.clone(addon.url, "/garrysmod/addons", addon.branch)
 
             if (addon.name !== addon.repo) {
                 logger.info(`Recloned a broken repo that has a custom name: ${addon.url} wants to be at ${addon.name}`)
                 await wisp.api.Filesystem.RenameFile(`/garrysmod/addons/${addon.repo}`, `/garrysmod/addons/${addon.name}`)
             }
 
-            pullResult = await wisp.socket.gitPull(addon.path)
+            pullResult = await wisp.socket.Git.pull(addon.path)
         }
     } else {
         throw(e)
@@ -217,11 +227,10 @@ const updateAddon = async (wisp: WispInterface, addon: InstalledAddon) => {
   }
 
   const addonUpdate: AddonUpdate = {
-    addon: addon,
-    isPrivate: pullResult.isPrivate
+    addon: addon
   }
 
-  return { update: addonUpdate, newCommit: pullResult.output }
+  return { update: addonUpdate, newCommit: pullResult.commit }
 }
 
 const processControlFile = async (controlFile: string, toClone: DesiredAddon[], toUpdate: InstalledAddon[], toDelete: InstalledAddon[], installedAddons: AddonURLToAddonMap) => {
@@ -287,13 +296,7 @@ const handleDeleteQueue = async (wisp: WispInterface, toDelete: InstalledAddon[]
 
       allChanges.delete.push(change)
     } catch (e) {
-      let errorMessage = "Unknown Error"
-
-      if (typeof e === "string") {
-        errorMessage = e
-      } else if (e instanceof Error) {
-        errorMessage = e.toString()
-      }
+      const errorMessage = errorToMessage(e)
 
       const failure: AddonDeleteFailure = {
         addon: addon,
@@ -307,8 +310,9 @@ const handleDeleteQueue = async (wisp: WispInterface, toDelete: InstalledAddon[]
   }
 }
 
-const handleCloneQueue = async (wisp: WispInterface, toClone: DesiredAddon[], allChanges: ChangeMap, allFailures: FailureMap) => {
-  const cloneResult = await cloneAddons(wisp, toClone)
+const handleCloneQueue = async (wisp: WispInterface, ghPAT: string, toClone: DesiredAddon[], allChanges: ChangeMap, allFailures: FailureMap) => {
+  const privacyMap = await getRepoPrivacy(ghPAT, toClone)
+  const cloneResult = await cloneAddons(wisp, toClone, privacyMap)
   const failures = cloneResult.failures
   const successes = cloneResult.successes
 
@@ -328,7 +332,7 @@ const handleCloneQueue = async (wisp: WispInterface, toClone: DesiredAddon[], al
   }
 }
 
-const handleUpdateQueue = async(wisp: WispInterface, ghPAT: string, toUpdate: InstalledAddon[], allChanges: ChangeMap, allFailures: FailureMap) => {
+const handleUpdateQueue = async(wisp: WispInterface, ghPAT: string, remoteGitInfo: AddonRemoteGitInfoMap, toUpdate: InstalledAddon[], allChanges: ChangeMap, allFailures: FailureMap) => {
   const addonUpdates = toUpdate.map((addon) => updateAddon(wisp, addon))
   const results = await Promise.allSettled(addonUpdates)
   logger.info("Handled all updates in the queue")
@@ -358,13 +362,13 @@ const handleUpdateQueue = async(wisp: WispInterface, ghPAT: string, toUpdate: In
           const changeInfo: AddonUpdateInfo = {
             addon: update.addon,
             updateInfo: change,
-            isPrivate: update.isPrivate
+            isPrivate: remoteGitInfo[addon.url]?.isPrivate ?? true
           }
 
           allChanges.update.push(changeInfo)
       } else {
           const addon = toUpdate[index]
-          const errorMessage = result.reason
+          const errorMessage = errorToMessage(result.reason)
 
           const failure: AddonUpdateFailure = {
             addon: addon,
@@ -437,7 +441,7 @@ async function manageAddons(wisp: any, serverName: string, ghPAT: string, alertW
 
   // New Addons
   if (toClone.length > 0) {
-    await handleCloneQueue(wisp, toClone, allChanges, allFailures)
+    await handleCloneQueue(wisp, ghPAT, toClone, allChanges, allFailures)
   } else {
     logger.info("No addons to clone")
   }
@@ -464,7 +468,7 @@ async function manageAddons(wisp: any, serverName: string, ghPAT: string, alertW
     // Filter out addons that don't need an update
     filtered = filterUpdateQueue(filtered, remoteGitInfo)
 
-    await handleUpdateQueue(wisp, ghPAT, filtered, allChanges, allFailures)
+    await handleUpdateQueue(wisp, ghPAT, remoteGitInfo, filtered, allChanges, allFailures)
   } else {
     logger.info("No addons to update")
   }

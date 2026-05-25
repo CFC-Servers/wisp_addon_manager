@@ -18,3 +18,6 @@ services:
     volumes:
       - ./control.yaml:/app/control.yaml:ro
       - ./node_modules:/app/node_modules
+      # local wispjs: node_modules/wispjs symlinks to ../../wispjs, which
+      # resolves to /wispjs inside the container.
+      - ../wispjs:/wispjs:ro

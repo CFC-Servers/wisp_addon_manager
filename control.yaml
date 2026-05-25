@@ -1,23 +1,20 @@
 addons:
-  - url: https://github.com/Stooberton/ACF-3
+  - url: https://github.com/CFC-Servers/name_enforcement
+    branch: main
+    
+  - url: https://github.com/ACF-Team/ACF-3
     branch: master
 
-  - url: https://github.com/TwistedTail/ACF-3-Missiles
-    branch: master
+  - url: https://github.com/ACF-Team/CFW
+    branch: main
 
-  - url: https://github.com/CFC-Servers/advdupe2
-    branch: cfc
+  - url: https://github.com/wiremod/advdupe2
+    branch: master
 
   - url: https://github.com/CFC-Servers/m9k_monorepo
     branch: main
 
   - url: https://github.com/CFC-Servers/anti_noclip
-    branch: main
-
-  - url: https://github.com/CFC-Servers/cfc_77.15.580
-    branch: lua
-
-  - url: https://github.com/CFC-Servers/cfc_acf_surprise_party
     branch: main
 
   - url: https://github.com/CFC-Servers/cfc_admin_core
@@ -26,7 +23,7 @@ addons:
   - url: https://github.com/CFC-Servers/cfc_admin_remove
     branch: main
 
-  - url: https://github.com/brandonsturgeon/cfc_antiafk_custom
+  - url: https://github.com/sarahsturgeon/cfc_antiafk_custom
     branch: master
 
   - url: https://github.com/CFC-Servers/cfc_apple_join_leave
@@ -41,10 +38,10 @@ addons:
   - url: https://github.com/CFC-Servers/cfc_auto_clean
     branch: master
 
-  - url: https://github.com/brandonsturgeon/cfc_awarn
-    branch: master
+  - url: https://github.com/CFC-Servers/cfc_acf_balance
+    branch: main
 
-  - url: https://github.com/CFC-Servers/cfc_blacking_out_because_you_went_too_fast_too_quickly
+  - url: https://github.com/CFC-Servers/acf_labotomizer
     branch: main
 
   - url: https://github.com/CFC-Servers/cfc_block_luarun
@@ -56,14 +53,17 @@ addons:
   - url: https://github.com/CFC-Servers/cfc_chatblock
     branch: main
 
+  - url: https://github.com/CFC-Servers/cfc_chat_transit
+    branch: lua
+
   - url: https://github.com/CFC-Servers/cfc_chat_visibility
     branch: master
 
   - url: https://github.com/CFC-Servers/cfc_chip_lister
     branch: main
 
-  - url: https://github.com/CFC-Servers/cfc_cl_http_whitelist
-    branch: main
+  - url: https://github.com/CFC-Servers/cfc_http_whitelist
+    branch: feature/proxy
 
   - url: https://github.com/CFC-Servers/cfc_cl_http_whitelist_configs
     branch: master
@@ -71,8 +71,17 @@ addons:
   - url: https://github.com/CFC-Servers/cfc_cl_optional_addons
     branch: main
 
+  - url: https://github.com/plally/gmod_addon_hotloader
+    branch: main
+
+  - url: https://github.com/CFC-Servers/cfc_contact_forms
+    branch: main
+
   - url: https://github.com/CFC-Servers/cfc_cw2_enhancements
     branch: master
+
+  - url: https://github.com/CFC-Servers/cfc_daily_restart
+    branch: main
 
   - url: https://github.com/CFC-Servers/cfc_detached_timer
     branch: main
@@ -104,9 +113,6 @@ addons:
   - url: https://github.com/CFC-Servers/cfc_friendwarn
     branch: lua
 
-  - url: https://github.com/CFC-Servers/cfc_glua_record_keeper
-    branch: lua
-
   - url: https://github.com/CFC-Servers/cfc_gm_help
     branch: main
 
@@ -122,7 +128,7 @@ addons:
   - url: https://github.com/CFC-Servers/gmod-voicechannels
     branch: master
 
-  - url: https://github.com/brandonsturgeon/cfc_gscoreboard
+  - url: https://github.com/CFC-Servers/cfc_gscoreboard
     branch: master
 
   - url: https://github.com/CFC-Servers/cfc_ignore_lag
@@ -143,14 +149,11 @@ addons:
   - url: https://github.com/CFC-Servers/cfc_map_scripts
     branch: main
 
-  - url: https://github.com/CFC-Servers/cfc_marums_hoverballs
-    branch: master
-
-  - url: https://github.com/CFC-Servers/cfc_midi_interface
-    branch: master
-
   - url: https://github.com/CFC-Servers/cfc_mobile_spawnpoint_2
     branch: master
+
+  - url: https://github.com/CFC-Servers/cfc_modlog
+    branch: main
 
   - url: https://github.com/CFC-Servers/cfc_network_promises
     branch: master
@@ -188,9 +191,6 @@ addons:
   - url: https://github.com/CFC-Servers/cfc_powerups
     branch: lua
 
-  - url: https://github.com/CFC-Servers/cfc_prop_restoration
-    branch: main
-
   - url: https://github.com/CFC-Servers/cfc_proximity_voice
     branch: main
 
@@ -210,6 +210,9 @@ addons:
     branch: master
 
   - url: https://github.com/CFC-Servers/cfc_remove_tabs
+    branch: master
+
+  - url: https://github.com/CFC-Servers/cfc_restart_alerter
     branch: master
 
   - url: https://github.com/CFC-Servers/cfc_restart_lib
@@ -257,7 +260,13 @@ addons:
   - url: https://github.com/CFC-Servers/cfc_waiter
     branch: master
 
-  - url: https://github.com/CFC-Servers/cfc_weapon_loadouts
+  - url: https://github.com/StyledStrike/gmod-custom-loadout
+    branch: master
+
+  - url: https://github.com/StyledStrike/gmod-glide
+    branch: main
+
+  - url: https://github.com/CFC-Servers/cfc_glide_additional_vehicles
     branch: main
 
   - url: https://github.com/CFC-Servers/cfc_weapon_lockouts
@@ -284,18 +293,6 @@ addons:
   - url: https://github.com/CFC-Servers/FSpectate
     branch: master
 
-  - url: https://github.com/CFC-Servers/gcompute
-    branch: master
-
-  - url: https://github.com/CFC-Servers/glib
-    branch: master
-
-  - url: https://github.com/CFC-Servers/gooey
-    branch: master
-
-  - url: https://github.com/CFC-Servers/vfs
-    branch: master
-
   - url: https://github.com/CFC-Servers/gm_anticrash
     branch: master
 
@@ -303,13 +300,19 @@ addons:
     branch: feature/include-http-failures-in-retries
 
   - url: https://github.com/CFC-Servers/gm_express_bindings
-    branch: feature/rewrite
+    branch: main
 
   - url: https://github.com/CFC-Servers/gm_fists_buff
     branch: main
 
+  - url: https://github.com/CFC-Servers/gm_mixpanel
+    branch: lua
+
   - url: https://github.com/CFC-Servers/gm_nitrous
     branch: main
+
+  - url: https://github.com/CFC-Servers/gm_nsa
+    branch: release
 
   - url: https://github.com/CFC-Servers/gmod_legs
     branch: main
@@ -326,17 +329,11 @@ addons:
   - url: https://github.com/CFC-Servers/gm_steam_lookup
     branch: lua
 
-  - url: https://github.com/CFC-Servers/gm_sudo
+  - url: https://github.com/CFC-Servers/cfc_glua_record_keeper
     branch: lua
-
-  - url: https://github.com/CFC-Servers/gm_sv_lua_audit
-    branch: main
 
   - url: https://github.com/CFC-Servers/gm_throttle
     branch: lua
-
-  - url: https://github.com/CFC-Servers/gm_voice_balance
-    branch: main
 
   - url: https://github.com/CFC-Servers/gm_weaponcore
     branch: main
@@ -365,13 +362,13 @@ addons:
   - url: https://github.com/CheezusChrust/Physgun-Buildmode
     branch: master
 
+  - url: https://github.com/plally/player_data_logger
+    branch: main
+
   - url: https://github.com/CFC-Servers/precision_alignment
     branch: master
 
-  - url: https://github.com/CFC-Servers/Prop2Mesh
-    branch: feature/reduce-index-calls
-
-  - url: https://github.com/CFC-Servers/simfphys_base
+  - url: https://github.com/shadowscion/Prop2Mesh
     branch: master
 
   - url: https://github.com/CFC-Servers/Sit-Anywhere
@@ -379,12 +376,6 @@ addons:
 
   - url: https://github.com/CFC-Servers/smartsnap
     branch: main
-
-  - url: https://github.com/thegrb93/StarfallEx
-    branch: master
-
-  - url: https://github.com/samuelWilliams99/StarfallEx_PrintPermissions
-    branch: master
 
   - url: https://github.com/npc-servers/textscreen-logger
     branch: main
@@ -416,7 +407,7 @@ addons:
   - url: https://github.com/CFC-Servers/wire-extras
     branch: master
 
-  - url: https://github.com/CFC-Servers/gmod-workshop-downloader
+  - url: https://github.com/CFC-Servers/contentalizer
     branch: master
 
   - url: https://github.com/CFC-Servers/gm_steam_lookup
@@ -432,23 +423,120 @@ addons:
     branch: main
 
   - url: https://github.com/CFC-Servers/gm_nanny_functions
-    branch: feature/git-improvements
+    branch: main
 
   - url: https://github.com/CFC-Servers/chucks_weaponry_2.0
     branch: main
 
-  - url: https://github.com/CFC-Servers/cfc_constraint_limiter
-    branch: main
+  - url: https://github.com/wrefgtzweve/cherry
+    branch: release
+    name: godsenttools
 
   - url: https://github.com/CFC-Servers/cfc_err_forwarder
-    branch: lua
+    branch: main
 
   - url: https://github.com/CFC-Servers/material-editor-tool
     branch: main
 
-  - url: https://github.com/CFC-Servers/lfs_planes
+  - url: https://github.com/CFC-Servers/geography_eggs
     branch: main
 
-  - url: https://github.com/CFC-Servers/gm_packer
+  - url: https://github.com/wrefgtzweve/luapad
+    branch: main
+
+  - url: https://github.com/CFC-Servers/cfc_build_kill_luapad_config
+    branch: main
+
+  - url: https://github.com/CFC-Servers/cfc_prop_restoration
+    branch: main
+
+  - url: https://github.com/Sevii77/proper_clipping
+    branch: master
+
+  - url: https://github.com/CFC-Servers/gm_sv_lua_audit
+    branch: main
+
+  - url: https://github.com/CFC-Servers/cfc_spawnin_lag_fixer
+    branch: main
+
+  - url: https://github.com/legokidlogan/customizable_prop_info
+    branch: main
+
+  - url: https://github.com/legokidlogan/customizable_hitmarkers
+    branch: main
+
+  - url: https://github.com/CheezusChrust/Fin-3
+    branch: master
+
+  - url: https://github.com/StrawWagen/constraint_tension_effects
+    branch: main
+
+  - url: https://github.com/CFC-Servers/gm_spawning_ratelimits
+    branch: main
+
+  - url: https://github.com/CFC-Servers/cumulative_killfeed
+    branch: main
+
+  - url: https://github.com/CFC-Servers/cfc_damage_conversion
+    branch: main
+
+  - url: https://github.com/StrawWagen/gm_better_preventransmit
+    branch: main
+
+  - url: https://github.com/thegrb93/StarfallEx
+    branch: master
+
+  - url: https://github.com/CFC-Servers/starfall_labotomizer
+    branch: main
+
+  - url: https://github.com/CFC-Servers/prop_shadow_remover
+    branch: main
+
+  - url: https://github.com/CFC-Servers/player_collision_stabilizer
+    branch: main
+
+  - url: https://github.com/CFC-Servers/sandbox_money_printer
+    branch: main
+
+  - url: https://github.com/CFC-Servers/gm_raid
+    branch: main
+
+  - url: https://github.com/StrawWagen/exquisite_radio
+    branch: main
+
+  - url: https://github.com/CFC-Servers/gm_doglogs
+    branch: main
+
+  - url: https://github.com/CFC-Servers/gmod_extra_content
+    branch: main
+
+  - url: https://github.com/PurrCoding/gm-mediaplayer
+    branch: master
+
+  - url: https://github.com/plally/hgui
+    branch: main
+
+  - url: https://github.com/plally/gm_audit_glua
+    branch: main
+
+  - url: https://github.com/CFC-Servers/cfc_lootboxes
+    branch: main
+
+  - url: https://github.com/CFC-Servers/cfc_joinmenu
+    branch: main
+
+  - url: https://github.com/CFC-Servers/asset_loader
+    branch: main
+
+  - url: https://github.com/StrawWagen/termhunter
+    branch: main
+
+  - url: https://github.com/StrawWagen/nextbot_zambies
+    branch: main
+
+  - url: https://github.com/StrawWagen/homeless_nextbot
+    branch: main
+
+  - url: https://github.com/StrawWagen/supercop_nextbot
     branch: main
 

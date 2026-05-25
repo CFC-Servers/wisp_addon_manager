@@ -1,229 +1,168 @@
 const MAX_EMBEDS_PER_MESSAGE = 10;
+const MAX_TOTAL_EMBED_SIZE = 6000;
 const MAX_DESCRIPTION_LENGTH = 4000;
+const MAX_UPDATE_DESCRIPTION_LENGTH = 2048;
+const MAX_COMMIT_MESSAGE_LENGTH = 50;
 const EMBED_COLORS = {
     update: 0x1E90FF,
     delete: 0xFF4500,
     create: 0x32CD32,
 };
 const hiddenURL = "https://github.com/404";
+const makeEmbed = (embed) => ({
+    ...embed,
+    timestamp: new Date().toISOString(),
+});
+const embedSize = (embed) => embed.title.length + embed.description.length;
+const chunkEmbeds = (embeds) => {
+    const chunks = [];
+    for (const embed of embeds) {
+        const chunk = chunks[chunks.length - 1];
+        const chunkSize = chunk?.reduce((total, e) => total + embedSize(e), 0) ?? 0;
+        const fits = chunk
+            && chunk.length < MAX_EMBEDS_PER_MESSAGE
+            && chunkSize + embedSize(embed) <= MAX_TOTAL_EMBED_SIZE;
+        if (fits) {
+            chunk.push(embed);
+        }
+        else {
+            chunks.push([embed]);
+        }
+    }
+    return chunks;
+};
 const getLinkForAddon = (addon) => {
     const url = `${addon.url.replace(".git", "")}/tree/${addon.branch}`;
     return `[**${addon.name}**](${url})`;
 };
-const generateUpdateEmbed = (addonUpdate) => {
-    const { addon, updateInfo, isPrivate } = addonUpdate;
-    const maxMessageLength = 50;
-    const embedTitle = `🚀 Updates for: **\`${addon.name}\`**`;
-    const diffURL = updateInfo?.url;
-    const commits = updateInfo?.commits || [];
-    const commitList = commits.map((commit) => {
-        if (isPrivate) {
-            commit.message = commit.message.replace(/[^ ]/g, "❚");
-            commit.author.username = "?";
-            commit.author.url = hiddenURL;
-            commit.url = hiddenURL;
-            commit.sha = commit.sha.replace(/[^ ]/g, "❚");
-        }
-        return commit;
-    });
-    const commitBody = commitList.map((commit) => {
-        let message = commit.message;
-        if (message.length > maxMessageLength) {
-            message = `${message.substring(0, maxMessageLength)}...`;
-        }
-        let commitPrefix = commit.verified ? "✅" : "#️⃣";
-        if (isPrivate) {
-            commitPrefix = "🔒";
-        }
-        const timestamp = Date.parse(commit.date) / 1000;
-        const timeLine = `_(<t:${timestamp}:R>)_`;
-        const shortSha = commit.sha.substring(0, 6);
-        const commitLink = `[\`${commitPrefix}${shortSha}\`](${commit.url})`;
-        const authorLink = `[@${commit.author.username}](${commit.author.url})`;
-        const commitLine = `**${authorLink} - ${commitLink}:**᲼${timeLine}`;
-        const commitMessage = `\`\`\`${message}\`\`\``;
-        return `${commitLine}\n${commitMessage}`;
-    });
-    console.log("Generated commits:", commitBody.length);
-    let description = "";
-    for (let i = 0; i < commitBody.length; i++) {
-        const andMore = `\n_And ${commitBody.length - i} more..._`;
-        const commit = commitBody[i];
-        if (description.length + commit.length > (2048 - andMore.length)) {
-            console.log("Truncating commits:", commitBody.length - i);
-            description += andMore;
-            break;
-        }
-        description += `${commit}\n`;
+const formatCommit = (commit, isPrivate) => {
+    const mask = (text) => text.replace(/[^ ]/g, "❚");
+    let message = isPrivate ? mask(commit.message) : commit.message;
+    if (message.length > MAX_COMMIT_MESSAGE_LENGTH) {
+        message = `${message.substring(0, MAX_COMMIT_MESSAGE_LENGTH)}...`;
     }
-    const embed = {
-        title: embedTitle,
-        description: description,
-        url: diffURL,
-        timestamp: new Date().toISOString(),
-    };
-    console.log("Generated update embed:", embed);
-    return embed;
+    const sha = (isPrivate ? mask(commit.sha) : commit.sha).substring(0, 6);
+    const prefix = isPrivate ? "🔒" : commit.verified ? "✅" : "#️⃣";
+    const username = isPrivate ? "?" : commit.author.username;
+    const authorURL = isPrivate ? hiddenURL : commit.author.url;
+    const commitURL = isPrivate ? hiddenURL : commit.url;
+    const time = `_(<t:${Date.parse(commit.date) / 1000}:R>)_`;
+    const header = `**[@${username}](${authorURL}) - [\`${prefix}${sha}\`](${commitURL}):**᲼${time}`;
+    return `${header}\n\`\`\`${message}\`\`\``;
 };
-const generateDeleteEmbed = (addonUpdates) => {
-    const embedTitle = `🗑️ Removed`;
-    const addonList = addonUpdates.map((change) => {
-        return `- [**${change.addon.name}**](${change.addon.url})`;
-    }).join('\n');
-    const embed = {
-        title: embedTitle,
-        description: addonList,
-        timestamp: new Date().toISOString(),
-    };
-    return embed;
+const buildUpdateDescription = (commitLines) => {
+    let description = "";
+    for (let i = 0; i < commitLines.length; i++) {
+        const andMore = `\n_And ${commitLines.length - i} more..._`;
+        if (description.length + commitLines[i].length > MAX_UPDATE_DESCRIPTION_LENGTH - andMore.length) {
+            return description + andMore;
+        }
+        description += `${commitLines[i]}\n`;
+    }
+    return description;
 };
-const generateAddedEmbed = (addonUpdates) => {
-    const embedTitle = `✨ New Addons`;
-    const commitList = addonUpdates.map((change) => {
-        const url = change.isPrivate ? hiddenURL : `${change.addon.url}/tree/${change.addon.branch}`;
-        const name = change.addon.name || change.addon.repo;
-        return `- [**${name}**](${url})`;
-    }).join('\n');
-    const embed = {
-        title: embedTitle,
-        description: commitList,
-        timestamp: new Date().toISOString(),
-    };
-    return embed;
+const generateUpdateEmbed = (update) => {
+    const { addon, updateInfo, isPrivate = false } = update;
+    const commits = updateInfo?.commits ?? [];
+    return makeEmbed({
+        title: `🚀 Updates for: **\`${addon.name}\`**`,
+        description: buildUpdateDescription(commits.map(commit => formatCommit(commit, isPrivate))),
+        url: isPrivate ? hiddenURL : updateInfo?.url,
+        color: EMBED_COLORS.update,
+    });
+};
+const generateDeleteEmbed = (deletes) => makeEmbed({
+    title: "🗑️ Removed",
+    description: deletes.map(({ addon }) => `- [**${addon.name}**](${addon.url})`).join("\n"),
+    color: EMBED_COLORS.delete,
+});
+const generateAddedEmbed = (creates) => makeEmbed({
+    title: "✨ New Addons",
+    description: creates.map(({ addon, isPrivate }) => {
+        const url = isPrivate ? hiddenURL : `${addon.url}/tree/${addon.branch}`;
+        return `- [**${addon.name || addon.repo}**](${url})`;
+    }).join("\n"),
+    color: EMBED_COLORS.create,
+});
+const failureSection = (title, failures) => {
+    if (failures.length === 0) {
+        return null;
+    }
+    const list = failures.map(({ addon, error }) => `- ${getLinkForAddon(addon)}: \`${error}\``);
+    return `${title}\n${list.join("\n")}`;
 };
 const sendWebhook = async (webhook, embeds, content) => {
-    const body = JSON.stringify({ embeds: embeds, content: content });
-    const headers = new Headers({
-        "Content-Type": "application/json",
-    });
-    const response = await fetch(webhook, { method: "POST", body: body, headers: headers });
+    const body = JSON.stringify({ embeds, content });
+    const headers = new Headers({ "Content-Type": "application/json" });
+    const response = await fetch(webhook, { method: "POST", body, headers });
     if (!response.ok) {
         console.error("Failed to send webhook", response.statusText, response.status, await response.text());
     }
     return response.ok;
 };
-export const generateUpdateWebhook = async (addonUpdates, alertWebhook, serverName) => {
-    const updates = [];
-    addonUpdates.update.forEach(update => {
-        updates.push({
-            ...generateUpdateEmbed(update),
-            color: EMBED_COLORS.update,
-        });
-    });
-    // Function to send a webhook for a chunk of embeds
-    const sendUpdate = async (embeds) => {
+export const generateUpdateWebhook = async (changes, alertWebhook, serverName) => {
+    const send = (embeds) => {
         if (!alertWebhook) {
             throw new Error("No webhook URL provided");
         }
-        console.log("Sending webhook to:", alertWebhook);
-        const content = `🔸 Addon Updates for: **\`${serverName}\`**`;
-        return sendWebhook(alertWebhook, embeds, content);
+        return sendWebhook(alertWebhook, embeds, `🔸 Addon Updates for: **\`${serverName}\`**`);
     };
-    // Send Additions
-    const newAndDeleted = [];
-    if (addonUpdates.create.length > 0) {
-        const creates = generateAddedEmbed(addonUpdates.create);
-        newAndDeleted.push({ ...creates, color: EMBED_COLORS.create });
+    const summary = [];
+    if (changes.create.length > 0) {
+        summary.push(generateAddedEmbed(changes.create));
     }
-    // Send Deletions
-    if (addonUpdates.delete.length > 0) {
-        const deletes = generateDeleteEmbed(addonUpdates.delete);
-        newAndDeleted.push({ ...deletes, color: EMBED_COLORS.delete });
+    if (changes.delete.length > 0) {
+        summary.push(generateDeleteEmbed(changes.delete));
     }
-    if (newAndDeleted.length > 0) {
-        const success = await sendUpdate(newAndDeleted);
-        if (!success) {
-            console.error('Failed to send webhook for new and deleted addons:', newAndDeleted);
-        }
+    if (summary.length > 0) {
+        await send(summary);
     }
-    for (let i = 0; i < updates.length; i += 10) {
-        const chunk = updates.slice(i, i + 10);
-        const success = await sendUpdate(chunk);
-        if (!success) {
-            console.error('Failed to send webhook for chunk:', chunk);
-        }
+    const updates = changes.update.map(generateUpdateEmbed);
+    for (const chunk of chunkEmbeds(updates)) {
+        await send(chunk);
     }
 };
-export const generateFailureWebhook = async (addonFailures, alertWebhook, serverName) => {
-    const bodyHeader = `### ❌ Failures encountered while updating: **\`${serverName}\`**\n\n`;
-    let body = "";
-    const deletes = addonFailures.delete;
-    if (deletes.length > 0) {
-        body = body + `🗑️ Failed to remove addons:\n`;
-        const addonList = deletes.map((change) => {
-            const url = getLinkForAddon(change.addon);
-            return `- ${url}: \`${change.error}\``;
-        });
-        body = body + addonList.join('\n');
-    }
-    const creates = addonFailures.create;
-    if (creates.length > 0) {
-        body = body + `✨ Failed to add addons:\n`;
-        const addonList = creates.map((change) => {
-            const url = getLinkForAddon(change.addon);
-            return `- ${url}: \`${change.error}\``;
-        });
-        body = body + addonList.join('\n');
-    }
-    const updates = addonFailures.update;
-    if (updates.length > 0) {
-        body = body + `🚀 Failed to update addons:\n`;
-        const addonList = updates.map((change) => {
-            const url = getLinkForAddon(change.addon);
-            return `- ${url}: \`${change.error}\``;
-        });
-        body = body + addonList.join('\n');
-    }
-    if (body.length === 0) {
+export const generateFailureWebhook = async (failures, alertWebhook, serverName) => {
+    const sections = [
+        failureSection("🗑️ Failed to remove addons:", failures.delete),
+        failureSection("✨ Failed to add addons:", failures.create),
+        failureSection("🚀 Failed to update addons:", failures.update),
+    ].filter((section) => section !== null);
+    if (sections.length === 0) {
         console.log("No failures to report");
         return;
     }
-    body = bodyHeader + body;
-    console.log("Sending failure webhook to:", alertWebhook);
-    const requestBody = JSON.stringify({ content: body });
-    const headers = new Headers({
-        "Content-Type": "application/json",
-    });
-    const response = await fetch(alertWebhook, { method: "POST", body: requestBody, headers: headers });
-    if (!response.ok) {
-        console.error("Failed to send webhook", response.statusText, response.status, await response.text());
-    }
-    return response.ok;
+    const header = `### ❌ Failures encountered while updating: **\`${serverName}\`**`;
+    return sendWebhook(alertWebhook, [], [header, ...sections].join("\n\n"));
 };
 const splitConfigDiffIntoEmbeds = (serverName, configDiff) => {
     const firstTitle = `📜 Server Config Update: **\`${serverName}\`**`;
-    const lines = configDiff.split('\n');
     const embeds = [];
-    let currentDescription = "```diff\n";
+    let description = "```diff\n";
     let isFirstEmbed = true;
-    for (const line of lines) {
-        const lineWithNewline = line + '\n';
-        if ((currentDescription + lineWithNewline).length > MAX_DESCRIPTION_LENGTH - 3) {
-            currentDescription += "```";
-            embeds.push({
-                title: isFirstEmbed ? firstTitle : "cont.",
-                description: currentDescription,
-                timestamp: new Date().toISOString(),
-            });
-            currentDescription = "```diff\n" + lineWithNewline;
-            isFirstEmbed = false;
+    const flush = () => {
+        embeds.push(makeEmbed({
+            title: isFirstEmbed ? firstTitle : "cont.",
+            description: description + "```",
+        }));
+        isFirstEmbed = false;
+    };
+    for (const line of configDiff.split("\n")) {
+        const lineWithNewline = line + "\n";
+        if ((description + lineWithNewline).length > MAX_DESCRIPTION_LENGTH - 3) {
+            flush();
+            description = "```diff\n" + lineWithNewline;
         }
         else {
-            currentDescription += lineWithNewline;
+            description += lineWithNewline;
         }
     }
-    currentDescription += "```";
-    embeds.push({
-        title: isFirstEmbed ? firstTitle : "cont.",
-        description: currentDescription,
-        timestamp: new Date().toISOString(),
-    });
+    flush();
     return embeds;
 };
 export const sendServerConfigEmbed = async (webhook, serverName, configDiff) => {
     const embeds = splitConfigDiffIntoEmbeds(serverName, configDiff);
-    for (let i = 0; i < embeds.length; i += MAX_EMBEDS_PER_MESSAGE) {
-        const embedChunk = embeds.slice(i, i + MAX_EMBEDS_PER_MESSAGE);
-        await sendWebhook(webhook, embedChunk, "");
+    for (const chunk of chunkEmbeds(embeds)) {
+        await sendWebhook(webhook, chunk, "");
     }
 };

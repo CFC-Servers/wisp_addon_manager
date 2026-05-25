@@ -3,16 +3,10 @@ FROM node:20.5
 WORKDIR /app
 
 COPY package.json package.json
-COPY *.tgz .
-
-RUN npm i --force && npm install typescript -g 
-RUN npm update @cfc-servers/wispjs
-
 COPY tsconfig.json tsconfig.json
-COPY *.ts ./
+COPY src ./src
 
-RUN tsc
-
-RUN ls -alh /app/node_modules/
-
-CMD [ "node", "dist/docker.js" ]
+# node_modules (incl. the local wispjs symlink, @types/node, and the project's
+# own typescript) is bind-mounted at runtime via docker-compose, so use the
+# project-local tsc to compile, then run.
+CMD [ "sh", "-c", "node_modules/.bin/tsc && node dist/docker.js" ]
