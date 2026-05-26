@@ -18,12 +18,9 @@ export const getGithubFile = async (ghPAT, owner, repo, path) => {
 };
 export const gitCommitDiff = async (ghPAT, owner, repo, oldSHA, newSHA) => {
     const octokit = new Octokit({ auth: ghPAT });
-    // get first 6 of each sha
-    oldSHA = oldSHA.substring(0, 6);
-    newSHA = newSHA.substring(0, 6);
     const basehead = `${oldSHA}...${newSHA}`;
     const path = "/repos/{owner}/{repo}/compare/{basehead}";
-    console.log(`Getting diff between ${oldSHA} and ${newSHA} from ${repo} owned by ${owner}. Path: ${path}`);
+    console.log(`Getting diff between ${oldSHA.substring(0, 6)} and ${newSHA.substring(0, 6)} from ${repo} owned by ${owner}. Path: ${path}`);
     const content = await octokit.request(`GET ${path}`, {
         owner: owner,
         repo: repo,

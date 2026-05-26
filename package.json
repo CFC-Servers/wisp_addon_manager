@@ -1,6 +1,6 @@
 {
   "name": "wisp_addon_manager",
-  "version": "1.4.7",
+  "version": "1.5.0",
   "type": "module",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
@@ -22,9 +22,8 @@
   "dependencies": {
     "@octokit/rest": "^20.0.1",
     "diff": "^7.0.0",
-    "socket.io-client": "^4.7.2",
     "typescript": "^5.1.6",
-    "wispjs": "file:../wispjs",
+    "wispjs": "^3.0.0",
     "yaml": "^2.3.2"
   },
   "devDependencies": {

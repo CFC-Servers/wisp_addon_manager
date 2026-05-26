@@ -2,11 +2,13 @@ FROM node:20.5
 
 WORKDIR /app
 
-COPY package.json package.json
+# Install dependencies (incl. wispjs from npm) at build time
+COPY package.json package-lock.json ./
+RUN npm ci
+
+# Compile the app
 COPY tsconfig.json tsconfig.json
 COPY src ./src
+RUN npx tsc
 
-# node_modules (incl. the local wispjs symlink, @types/node, and the project's
-# own typescript) is bind-mounted at runtime via docker-compose, so use the
-# project-local tsc to compile, then run.
-CMD [ "sh", "-c", "node_modules/.bin/tsc && node dist/docker.js" ]
+CMD [ "node", "dist/docker.js" ]

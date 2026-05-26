@@ -98,6 +98,9 @@ const sendWebhook = async (webhook, embeds, content) => {
     if (!response.ok) {
         console.error("Failed to send webhook", response.statusText, response.status, await response.text());
     }
+    else {
+        console.log(`Webhook sent (${response.status}, ${embeds.length} embed(s))`);
+    }
     return response.ok;
 };
 export const generateUpdateWebhook = async (changes, alertWebhook, serverName) => {
@@ -118,7 +121,9 @@ export const generateUpdateWebhook = async (changes, alertWebhook, serverName) =
         await send(summary);
     }
     const updates = changes.update.map(generateUpdateEmbed);
-    for (const chunk of chunkEmbeds(updates)) {
+    const chunks = chunkEmbeds(updates);
+    console.log(`Sending ${updates.length} update embed(s) across ${chunks.length} message(s)`);
+    for (const chunk of chunks) {
         await send(chunk);
     }
 };
