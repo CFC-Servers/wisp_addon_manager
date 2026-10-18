@@ -256,7 +256,9 @@ const handleDeleteQueue = async (wisp, toDelete, allChanges, allFailures) => {
 };
 const handleCloneQueue = async (wisp, ghPAT, toClone, allChanges, allFailures) => {
     const privacyMap = await getRepoPrivacy(ghPAT, toClone);
-    const cloneResult = await cloneAddons(wisp, toClone, privacyMap);
+    // Repos we couldn't read are absent from the map, so they're skipped
+    const cloneable = toClone.filter((addon) => addon.url in privacyMap);
+    const cloneResult = await cloneAddons(wisp, cloneable, privacyMap);
     const failures = cloneResult.failures;
     const successes = cloneResult.successes;
     if (failures && failures.length > 0) {
@@ -320,6 +322,9 @@ const handleUpdateQueue = async (wisp, ghPAT, remoteGitInfo, toUpdate, allChange
 const filterUpdateQueue = (toUpdate, remoteGitInfo) => {
     return toUpdate.filter((addon) => {
         const remoteInfo = remoteGitInfo[addon.url];
+        if (!remoteInfo) {
+            return false;
+        }
         return addon.commit !== remoteInfo.latestCommit;
     });
 };
@@ -327,6 +332,9 @@ const filterUpdateQueue = (toUpdate, remoteGitInfo) => {
 const findBadBranches = (toUpdate, remoteGitInfo) => {
     return toUpdate.filter((addon) => {
         const remoteInfo = remoteGitInfo[addon.url];
+        if (!remoteInfo) {
+            return false;
+        }
         const latestCommit = remoteInfo.latestCommit;
         return latestCommit === "UNKNOWN";
     });
