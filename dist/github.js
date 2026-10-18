@@ -52,6 +52,22 @@ export const gitCommitDiff = async (ghPAT, owner, repo, oldSHA, newSHA) => {
     }
     return compareDTO;
 };
+// GitHub returns partial data plus errors when some of the batched repos are
+// missing or inaccessible to the token. Octokit throws on that response; keep
+// the data and leave the failed repos out so they are skipped.
+const graphqlOrPartialData = async (octokit, query) => {
+    try {
+        return await octokit.graphql(query);
+    }
+    catch (e) {
+        if (!e.data) {
+            throw e;
+        }
+        const messages = (e.errors ?? []).map((err) => err.message).join("; ");
+        console.log(`::warning::${messages || "Some repositories could not be read from GitHub"}`);
+        return e.data;
+    }
+};
 export const requestHashes = async (ghPAT, addons) => {
     const octokit = new Octokit({ auth: ghPAT });
     const addonsList = Object.values(addons);
@@ -73,10 +89,13 @@ export const requestHashes = async (ghPAT, addons) => {
     query += `}`;
     try {
         const result = {};
-        const response = await octokit.graphql(query);
+        const response = await graphqlOrPartialData(octokit, query);
         for (const [key, item] of Object.entries(response)) {
             const addonIndex = parseInt(key.substring(4));
             const addon = addonsList[addonIndex];
+            if (!item) {
+                continue;
+            }
             const info = {
                 latestCommit: item.ref?.target?.oid || "UNKNOWN",
                 isPrivate: item.isPrivate
@@ -92,7 +111,7 @@ export const requestHashes = async (ghPAT, addons) => {
 };
 // Looks up the isPrivate flag for addons we're about to clone (they aren't
 // installed yet, so they're absent from the remote git info map). Returns a
-// map of addon url -> isPrivate.
+// map of addon url -> isPrivate. Repos we can't read are left out of the map.
 export const getRepoPrivacy = async (ghPAT, addons) => {
     const result = {};
     if (addons.length === 0) {
@@ -108,12 +127,14 @@ export const getRepoPrivacy = async (ghPAT, addons) => {
     `;
     });
     query += `}`;
-    const response = await octokit.graphql(query);
+    const response = await graphqlOrPartialData(octokit, query);
     for (const [key, item] of Object.entries(response)) {
         const addonIndex = parseInt(key.substring(4));
         const addon = addons[addonIndex];
-        // Default missing/inaccessible repos to private so we never leak a URL
-        result[addon.url] = item?.isPrivate ?? true;
+        if (!item) {
+            continue;
+        }
+        result[addon.url] = item.isPrivate;
     }
     return result;
 };

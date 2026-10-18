@@ -312,7 +312,9 @@ const handleDeleteQueue = async (wisp: WispInterface, toDelete: InstalledAddon[]
 
 const handleCloneQueue = async (wisp: WispInterface, ghPAT: string, toClone: DesiredAddon[], allChanges: ChangeMap, allFailures: FailureMap) => {
   const privacyMap = await getRepoPrivacy(ghPAT, toClone)
-  const cloneResult = await cloneAddons(wisp, toClone, privacyMap)
+  // Repos we couldn't read are absent from the map, so they're skipped
+  const cloneable = toClone.filter((addon) => addon.url in privacyMap)
+  const cloneResult = await cloneAddons(wisp, cloneable, privacyMap)
   const failures = cloneResult.failures
   const successes = cloneResult.successes
 
@@ -385,6 +387,9 @@ const handleUpdateQueue = async(wisp: WispInterface, ghPAT: string, remoteGitInf
 const filterUpdateQueue = (toUpdate: InstalledAddon[], remoteGitInfo: AddonRemoteGitInfoMap) => {
   return toUpdate.filter((addon: InstalledAddon) => {
     const remoteInfo = remoteGitInfo[addon.url]
+    if (!remoteInfo) {
+      return false
+    }
     return addon.commit !== remoteInfo.latestCommit
   })
 }
@@ -393,6 +398,9 @@ const filterUpdateQueue = (toUpdate: InstalledAddon[], remoteGitInfo: AddonRemot
 const findBadBranches = (toUpdate: InstalledAddon[], remoteGitInfo: AddonRemoteGitInfoMap) => {
     return toUpdate.filter((addon: InstalledAddon) => {
         const remoteInfo = remoteGitInfo[addon.url]
+        if (!remoteInfo) {
+            return false
+        }
         const latestCommit = remoteInfo.latestCommit
 
         return latestCommit === "UNKNOWN"
